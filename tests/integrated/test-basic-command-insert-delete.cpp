@@ -29,7 +29,9 @@
 #include <ndn-cxx/util/random.hpp>
 
 #include <boost/mpl/vector.hpp>
-#include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test.hpp> 
+
+#include <ndn-cxx/util/time.hpp>
 
 namespace repo {
 namespace tests {
@@ -116,11 +118,13 @@ Fixture<T>::onInsertInterest(const Interest& interest)
   data.setContent(content, sizeof(content));
   data.setFreshnessPeriod(milliseconds(0));
   keyChain.sign(data);
+  std::cout<<"sdfsdf..."<<data.getName()<<std::endl;
   insertFace.put(data);
   std::map<Name, EventId>::iterator event = insertEvents.find(interest.getName());
   if (event != insertEvents.end()) {
     scheduler.cancelEvent(event->second);
     insertEvents.erase(event);
+    std::cout<<"erased timeout event"<<std::endl;
   }
   // schedule an event 50ms later to check whether insert is Ok
   scheduler.scheduleEvent(milliseconds(500),
@@ -148,7 +152,9 @@ Fixture<T>::onInsertData(const Interest& interest, const Data& data)
   response.wireDecode(data.getContent().blockFromValue());
   int statusCode = response.getStatusCode();
   BOOST_CHECK_EQUAL(statusCode, 100);
-  //  std::cout<<"statuse code of insert name = "<<response.getName()<<std::endl;
+  // get the status of insert if not success
+  std::cout<<"yeah the we get some feedback(insert) from repo"<<std::endl;
+  // std::cout<<"statuse code of insert name = "<<response.getName()<<std::endl;
 }
 
 template<class T> void
@@ -183,6 +189,8 @@ Fixture<T>::sendInsertInterest(const Interest& insertInterest)
                              bind(&Fixture<T>::onInsertData, this, _1, _2),
                              bind(&Fixture<T>::onInsertTimeout, this, _1), // Nack
                              bind(&Fixture<T>::onInsertTimeout, this, _1));
+  // the repo has send interest!
+  std::cout<<"ok, so requester did send insert command interest to repo"<<std::endl;
 }
 
 template<class T> void
@@ -227,8 +235,12 @@ Fixture<T>::scheduleInsertEvent()
                             .appendNumber(ndn::random::generateWord64()));
 
     insertCommandName.append(insertParameter.wireEncode());
+    // add timestamp for insert command interest
+    insertCommandName.appendNumber(1);
+    insertCommandName.appendNumber(ndn::random::generateWord64());
     Interest insertInterest(insertCommandName);
     keyChain.sign(insertInterest);
+
     //schedule a job to express insertInterest every 50ms
     scheduler.scheduleEvent(milliseconds(timeCount * 50 + 1000),
                             bind(&Fixture<T>::sendInsertInterest, this, insertInterest));
@@ -258,6 +270,8 @@ Fixture<T>::scheduleDeleteEvent()
     deleteParameter.setProcessId(ndn::random::generateWord64());
     deleteParameter.setName((*i)->getName());
     deleteCommandName.append(deleteParameter.wireEncode());
+    deleteCommandName.appendTimestamp();
+    deleteCommandName.appendNumber(ndn::random::generateWord64());
     Interest deleteInterest(deleteCommandName);
     keyChain.sign(deleteInterest);
     scheduler.scheduleEvent(milliseconds(4000 + timeCount * 50),
@@ -268,8 +282,6 @@ Fixture<T>::scheduleDeleteEvent()
 
 typedef boost::mpl::vector< BasicDataset,
                             FetchByPrefixDataset,
-                            BasicChildSelectorDataset,
-                            ExtendedChildSelectorDataset,
                             SamePrefixDataset<10> > Datasets;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(InsertDelete, T, Datasets, Fixture<T>)

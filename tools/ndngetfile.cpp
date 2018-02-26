@@ -50,7 +50,6 @@ Consumer::fetchData(const Name& name)
   else
     {
       interest.setMustBeFresh(true);
-      interest.setChildSelector(1);
     }
 
   m_face.expressInterest(interest,

@@ -27,34 +27,6 @@ namespace repo {
 /** @brief determines if entry can satisfy interest
  *  @param hash SHA256 hash of PublisherPublicKeyLocator if exists in interest, otherwise ignored
  */
-static bool
-matchesSimpleSelectors(const Interest& interest, ndn::ConstBufferPtr& hash,
-                       const Index::Entry& entry)
-{
-  const Name& fullName = entry.getName();
-
-  if (!interest.getName().isPrefixOf(fullName))
-    return false;
-
-  size_t nSuffixComponents = fullName.size() - interest.getName().size();
-  if (interest.getMinSuffixComponents() >= 0 &&
-      nSuffixComponents < static_cast<size_t>(interest.getMinSuffixComponents()))
-    return false;
-  if (interest.getMaxSuffixComponents() >= 0 &&
-      nSuffixComponents > static_cast<size_t>(interest.getMaxSuffixComponents()))
-    return false;
-
-  if (!interest.getExclude().empty() &&
-      entry.getName().size() > interest.getName().size() &&
-      interest.getExclude().isExcluded(entry.getName()[interest.getName().size()]))
-    return false;
-  if (!interest.getPublisherPublicKeyLocator().empty())
-    {
-      if (*entry.getKeyLocatorHash() != *hash)
-          return false;
-    }
-  return true;
-}
 
 Index::Index(size_t nMaxPackets)
   : m_maxPackets(nMaxPackets)
@@ -88,6 +60,7 @@ Index::insert(const Name& fullName, int64_t id,
   return isInserted;
 }
 
+
 std::pair<int64_t,Name>
 Index::find(const Interest& interest) const
 {
@@ -95,12 +68,14 @@ Index::find(const Interest& interest) const
   IndexContainer::const_iterator result = m_indexContainer.lower_bound(name);
   if (result != m_indexContainer.end())
     {
-      return selectChild(interest, result);
+      // get the name of interest and match prefix
+      return findFirstEntry(name, result);
     }
   else
     {
       return std::make_pair(0, Name());
     }
+  
 }
 
 std::pair<int64_t,Name>
@@ -164,66 +139,6 @@ Index::computeKeyLocatorHash(const KeyLocator& keyLocator)
   return keyLocatorHash;
 }
 
-std::pair<int64_t,Name>
-Index::selectChild(const Interest& interest,
-                   IndexContainer::const_iterator startingPoint) const
-{
-  BOOST_ASSERT(startingPoint != m_indexContainer.end());
-  bool isLeftmost = (interest.getChildSelector() <= 0);
-  ndn::ConstBufferPtr hash;
-  if (!interest.getPublisherPublicKeyLocator().empty())
-    {
-      KeyLocator keyLocator = interest.getPublisherPublicKeyLocator();
-      const Block& block = keyLocator.wireEncode();
-      hash = ndn::util::Sha256::computeDigest(block.wire(), block.size());
-    }
-
-  if (isLeftmost)
-    {
-      for (IndexContainer::const_iterator it = startingPoint;
-           it != m_indexContainer.end(); ++it)
-        {
-          if (!interest.getName().isPrefixOf(it->getName()))
-            return std::make_pair(0, Name());
-          if (matchesSimpleSelectors(interest, hash, (*it)))
-            return std::make_pair(it->getId(), it->getName());
-        }
-    }
-  else
-    {
-      IndexContainer::const_iterator boundary = m_indexContainer.lower_bound(interest.getName());
-      if (boundary == m_indexContainer.end() || !interest.getName().isPrefixOf(boundary->getName()))
-        return std::make_pair(0, Name());
-      Name successor = interest.getName().getSuccessor();
-      IndexContainer::const_iterator last = interest.getName().size() == 0 ?
-                    m_indexContainer.end() : m_indexContainer.lower_bound(interest.getName().getSuccessor());
-      while (true)
-        {
-          IndexContainer::const_iterator prev = last;
-          --prev;
-          if (prev == boundary)
-            {
-              bool isMatch = matchesSimpleSelectors(interest, hash, (*prev));
-              if (isMatch)
-                {
-                  return std::make_pair(prev->getId(), prev->getName());
-                }
-              else
-                return std::make_pair(0, Name());
-            }
-          IndexContainer::const_iterator first =
-            m_indexContainer.lower_bound(prev->getName().getPrefix(interest.getName().size() + 1));
-          IndexContainer::const_iterator match =
-                     std::find_if(first, last, bind(&matchesSimpleSelectors, interest, hash, _1));
-          if (match != last)
-            {
-              return std::make_pair(match->getId(), match->getName());
-            }
-          last = first;
-        }
-    }
-  return std::make_pair(0, Name());
-}
 
 Index::Entry::Entry(const Data& data, int64_t id)
   : m_name(data.getFullName())

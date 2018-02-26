@@ -67,6 +67,7 @@ public:
       (*i)->setContent(content, sizeof(content));
       (*i)->setFreshnessPeriod(ndn::time::milliseconds(36000));
       keyChain.sign(**i);
+      std::cout<<"this..."<<(*i)->getName()<<std::endl;
       bool rc = handle->insertData(**i);
 
       BOOST_CHECK_EQUAL(rc, true);
@@ -112,8 +113,6 @@ public:
 
 typedef boost::mpl::vector< BasicDataset,
                             FetchByPrefixDataset,
-                            BasicChildSelectorDataset,
-                            ExtendedChildSelectorDataset,
                             SamePrefixDataset<10> > Datasets;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(Read, T, Datasets, BasicInterestReadFixture<T>)
