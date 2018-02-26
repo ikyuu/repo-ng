@@ -176,6 +176,7 @@ public:
   std::pair<int64_t, Name>
   find(const Interest& interest) const;
 
+
   /** @brief find the first Entry under a Name prefix
    * @return ID and fullName of the Entry, or (0,ignored) if not found
    */
@@ -202,19 +203,16 @@ public:
   }
 
 private:
-  /**
-   *  @brief select entries which satisfy the selectors in interest and return their name
-   *  @param  interest   used to select entries by comparing the name and checking selectors
-   *  @param  idName    save the id and name of found entries
-   *  @param  startingPoint the entry whose name is equal or larger than the interest name
-   */
+
   std::pair<int64_t, Name>
   selectChild(const Interest& interest,
               IndexContainer::const_iterator startingPoint) const;
 
+
   /**
    *  @brief check whether the index is full
    */
+
   bool
   isFull() const
   {

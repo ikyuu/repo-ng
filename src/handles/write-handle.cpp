@@ -51,7 +51,8 @@ WriteHandle::onInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WriteHandle::onValidated, this, _1, prefix),
-                       bind(&WriteHandle::onValidationFailed, this, _1, _2));
+                       // bind(&WriteHandle::onValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onValidated, this, _1, prefix));
 }
 
 void
@@ -68,10 +69,6 @@ WriteHandle::onValidated(const Interest& interest, const Name& prefix)
   }
 
   if (parameter.hasStartBlockId() || parameter.hasEndBlockId()) {
-    if (parameter.hasSelectors()) {
-      negativeReply(interest, 402);
-      return;
-    }
     processSegmentedInsertCommand(interest, parameter);
   }
   else {
@@ -93,7 +90,8 @@ WriteHandle::onData(const Interest& interest, const Data& data, ProcessId proces
 {
   m_validator.validate(data,
                        bind(&WriteHandle::onDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onDataValidated, this, interest, _1, processId));
+                       // bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
@@ -127,7 +125,8 @@ WriteHandle::onSegmentData(const Interest& interest, const Data& data, ProcessId
 {
   m_validator.validate(data,
                        bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId));
+                       // bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
@@ -375,7 +374,8 @@ WriteHandle::onCheckInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WriteHandle::onCheckValidated, this, _1, prefix),
-                       bind(&WriteHandle::onCheckValidationFailed, this, _1, _2));
+                       // bind(&WriteHandle::onCheckValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onCheckValidated, this, _1, prefix));
 
 }
 
@@ -458,9 +458,7 @@ WriteHandle::processSingleInsertCommand(const Interest& interest,
 
   Interest fetchInterest(parameter.getName());
   fetchInterest.setInterestLifetime(m_interestLifetime);
-  if (parameter.hasSelectors()) {
-    fetchInterest.setSelectors(parameter.getSelectors());
-  }
+  
   getFace().expressInterest(fetchInterest,
                             bind(&WriteHandle::onData, this, _1, _2, processId),
                             bind(&WriteHandle::onTimeout, this, _1, processId), // Nack

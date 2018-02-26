@@ -101,6 +101,7 @@ Fixture<T>::onWatchInterest(const Interest& interest)
   data->setContent(content, sizeof(content));
   data->setFreshnessPeriod(milliseconds(0));
   keyChain.sign(*data);
+  std::cout<<"watch data"<<std::endl;
   watchFace.put(*data);
 
   // schedule an event 50ms later to check whether watch is Ok

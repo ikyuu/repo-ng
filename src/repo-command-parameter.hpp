@@ -25,14 +25,12 @@
 #include <ndn-cxx/encoding/encoding-buffer.hpp>
 #include <ndn-cxx/encoding/block-helpers.hpp>
 #include <ndn-cxx/name.hpp>
-#include <ndn-cxx/selectors.hpp>
 
 namespace repo {
 
 using ndn::Name;
 using ndn::Block;
 using ndn::EncodingImpl;
-using ndn::Selectors;
 using ndn::EncodingEstimator;
 using ndn::EncodingBuffer;
 using namespace ndn::time;
@@ -93,25 +91,6 @@ public:
     return m_hasName;
   }
 
-  const Selectors&
-  getSelectors() const
-  {
-    return m_selectors;
-  }
-
-  RepoCommandParameter&
-  setSelectors(const Selectors& selectors)
-  {
-    m_selectors = selectors;
-    m_wire.reset();
-    return *this;
-  }
-
-  bool
-  hasSelectors() const
-  {
-    return !m_selectors.empty();
-  }
 
   uint64_t
   getStartBlockId() const
@@ -258,7 +237,6 @@ public:
 private:
 
   Name m_name;
-  Selectors m_selectors;
   uint64_t m_startBlockId;
   uint64_t m_endBlockId;
   uint64_t m_processId;
@@ -326,9 +304,6 @@ RepoCommandParameter::wireEncode(EncodingImpl<T>& encoder) const
     totalLength += encoder.prependVarNumber(tlv::InterestLifetime);
   }
 
-  if (!getSelectors().empty()) {
-    totalLength += getSelectors().wireEncode(encoder);
-  }
 
   if (m_hasName) {
     totalLength += getName().wireEncode(encoder);
@@ -380,15 +355,6 @@ RepoCommandParameter::wireDecode(const Block& wire)
     m_hasName = true;
     m_name.wireDecode(m_wire.get(tlv::Name));
   }
-
-  // Selectors
-  val = m_wire.find(tlv::Selectors);
-  if (val != m_wire.elements_end())
-  {
-    m_selectors.wireDecode(*val);
-  }
-  else
-    m_selectors = Selectors();
 
   // StartBlockId
   val = m_wire.find(tlv::StartBlockId);

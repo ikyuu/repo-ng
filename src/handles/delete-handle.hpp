@@ -72,9 +72,6 @@ private:
   processSingleDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
 
   void
-  processSelectorDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
-
-  void
   processSegmentDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
 
 private:

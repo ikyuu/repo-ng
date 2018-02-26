@@ -53,6 +53,7 @@ bool
 RepoStorage::insertData(const Data& data)
 {
    bool isExist = m_index.hasData(data);
+   std::cout<<"data to be inserted: "<<data.getName()<<std::endl;
    if (isExist)
      BOOST_THROW_EXCEPTION(Error("The Entry Has Already In the Skiplist. Cannot be Inserted!"));
    int64_t id = m_storage.insert(data);
@@ -94,7 +95,6 @@ ssize_t
 RepoStorage::deleteData(const Interest& interest)
 {
   Interest interestDelete = interest;
-  interestDelete.setChildSelector(0);  //to disable the child selector in delete handle
   int64_t count = 0;
   bool hasError = false;
   std::pair<int64_t,ndn::Name> idName = m_index.find(interestDelete);

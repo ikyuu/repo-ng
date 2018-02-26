@@ -33,8 +33,7 @@ using namespace ndn::time;
 /**
  * @brief WatchHandle provides a different way for repo to insert data.
  *
- * Repo keeps sending interest to request the data with same prefix,
- * but with different exclude selectors(updated every time). Repo will stop
+ * Repo keeps sending interest to request the data with same prefix. Repo will stop
  * watching the prefix until a command interest tell it to stop, the total
  * amount of sent interests reaches a specific number or time out.
  */

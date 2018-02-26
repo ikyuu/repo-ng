@@ -52,6 +52,7 @@ ReadHandle::onInterest(const Name& prefix, const Interest& interest)
   shared_ptr<ndn::Data> data = getStorageHandle().readData(interest);
   if (data != nullptr) {
       getFace().put(*data);
+      // sample output, to make sure that repo gets the interest
   }
 }
 
