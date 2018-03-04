@@ -52,17 +52,22 @@ RepoStorage::insertItemToIndex(const Storage::ItemMeta& item)
 bool
 RepoStorage::insertData(const Data& data)
 {
-   bool isExist = m_index.hasData(data);
-   std::cout<<"data to be inserted: "<<data.getName()<<std::endl;
-   if (isExist)
-     BOOST_THROW_EXCEPTION(Error("The Entry Has Already In the Skiplist. Cannot be Inserted!"));
-   int64_t id = m_storage.insert(data);
-   if (id == -1)
-     return false;
-   bool didInsert = m_index.insert(data, id);
-   if (didInsert)
-     afterDataInsertion(data.getName());
-   return didInsert;
+  bool isExist = m_index.hasData(data);
+  if (isExist)
+  {
+    NDN_LOG_DEBUG("Entry already in the Index, regarded as successful data insertion.");
+    return true;
+  }
+  else
+  {
+    int64_t id = m_storage.insert(data);
+    if (id == -1)
+      return false;
+    bool didInsert = m_index.insert(data, id);
+    if (didInsert)
+      afterDataInsertion(data.getName());
+    return didInsert;
+  }
 }
 
 ssize_t
@@ -119,13 +124,16 @@ RepoStorage::deleteData(const Interest& interest)
 shared_ptr<Data>
 RepoStorage::readData(const Interest& interest) const
 {
+  NDN_LOG_DEBUG("Reading data for " << interest.getName());
   std::pair<int64_t,ndn::Name> idName = m_index.find(interest);
   if (idName.first != 0) {
     shared_ptr<Data> data = m_storage.read(idName.first);
     if (data) {
+      NDN_LOG_DEBUG("Data found for " << interest.getName());
       return data;
     }
   }
+  NDN_LOG_DEBUG("Data not found for " << interest.getName());
   return shared_ptr<Data>();
 }
 

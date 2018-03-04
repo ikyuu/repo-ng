@@ -20,7 +20,11 @@
 #include "read-handle.hpp"
 #include "repo.hpp"
 
+#include <ndn-cxx/util/logger.hpp>
+
 namespace repo {
+
+NDN_LOG_INIT(repo.ReadHandle);
 
 ReadHandle::ReadHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
                        Scheduler& scheduler, size_t prefixSubsetLength)
@@ -49,10 +53,10 @@ ReadHandle::connectAutoListen()
 void
 ReadHandle::onInterest(const Name& prefix, const Interest& interest)
 {
+  NDN_LOG_DEBUG("Received Interest " << interest.getName());
   shared_ptr<ndn::Data> data = getStorageHandle().readData(interest);
   if (data != nullptr) {
       getFace().put(*data);
-      // sample output, to make sure that repo gets the interest
   }
 }
 

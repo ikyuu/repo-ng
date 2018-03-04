@@ -118,13 +118,11 @@ Fixture<T>::onInsertInterest(const Interest& interest)
   data.setContent(content, sizeof(content));
   data.setFreshnessPeriod(milliseconds(0));
   keyChain.sign(data);
-  std::cout<<"sdfsdf..."<<data.getName()<<std::endl;
   insertFace.put(data);
   std::map<Name, EventId>::iterator event = insertEvents.find(interest.getName());
   if (event != insertEvents.end()) {
     scheduler.cancelEvent(event->second);
     insertEvents.erase(event);
-    std::cout<<"erased timeout event"<<std::endl;
   }
   // schedule an event 50ms later to check whether insert is Ok
   scheduler.scheduleEvent(milliseconds(500),
@@ -152,9 +150,6 @@ Fixture<T>::onInsertData(const Interest& interest, const Data& data)
   response.wireDecode(data.getContent().blockFromValue());
   int statusCode = response.getStatusCode();
   BOOST_CHECK_EQUAL(statusCode, 100);
-  // get the status of insert if not success
-  std::cout<<"yeah the we get some feedback(insert) from repo"<<std::endl;
-  // std::cout<<"statuse code of insert name = "<<response.getName()<<std::endl;
 }
 
 template<class T> void
@@ -189,8 +184,6 @@ Fixture<T>::sendInsertInterest(const Interest& insertInterest)
                              bind(&Fixture<T>::onInsertData, this, _1, _2),
                              bind(&Fixture<T>::onInsertTimeout, this, _1), // Nack
                              bind(&Fixture<T>::onInsertTimeout, this, _1));
-  // the repo has send interest!
-  std::cout<<"ok, so requester did send insert command interest to repo"<<std::endl;
 }
 
 template<class T> void
