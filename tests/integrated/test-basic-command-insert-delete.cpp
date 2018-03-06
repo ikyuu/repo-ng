@@ -29,7 +29,9 @@
 #include <ndn-cxx/util/random.hpp>
 
 #include <boost/mpl/vector.hpp>
-#include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test.hpp> 
+
+#include <ndn-cxx/util/time.hpp>
 
 namespace repo {
 namespace tests {
@@ -148,7 +150,6 @@ Fixture<T>::onInsertData(const Interest& interest, const Data& data)
   response.wireDecode(data.getContent().blockFromValue());
   int statusCode = response.getStatusCode();
   BOOST_CHECK_EQUAL(statusCode, 100);
-  //  std::cout<<"statuse code of insert name = "<<response.getName()<<std::endl;
 }
 
 template<class T> void
@@ -227,8 +228,12 @@ Fixture<T>::scheduleInsertEvent()
                             .appendNumber(ndn::random::generateWord64()));
 
     insertCommandName.append(insertParameter.wireEncode());
+    // add timestamp for insert command interest
+    insertCommandName.appendNumber(1);
+    insertCommandName.appendNumber(ndn::random::generateWord64());
     Interest insertInterest(insertCommandName);
     keyChain.sign(insertInterest);
+
     //schedule a job to express insertInterest every 50ms
     scheduler.scheduleEvent(milliseconds(timeCount * 50 + 1000),
                             bind(&Fixture<T>::sendInsertInterest, this, insertInterest));
@@ -258,6 +263,8 @@ Fixture<T>::scheduleDeleteEvent()
     deleteParameter.setProcessId(ndn::random::generateWord64());
     deleteParameter.setName((*i)->getName());
     deleteCommandName.append(deleteParameter.wireEncode());
+    deleteCommandName.appendTimestamp();
+    deleteCommandName.appendNumber(ndn::random::generateWord64());
     Interest deleteInterest(deleteCommandName);
     keyChain.sign(deleteInterest);
     scheduler.scheduleEvent(milliseconds(4000 + timeCount * 50),
@@ -268,8 +275,6 @@ Fixture<T>::scheduleDeleteEvent()
 
 typedef boost::mpl::vector< BasicDataset,
                             FetchByPrefixDataset,
-                            BasicChildSelectorDataset,
-                            ExtendedChildSelectorDataset,
                             SamePrefixDataset<10> > Datasets;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(InsertDelete, T, Datasets, Fixture<T>)

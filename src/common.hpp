@@ -26,7 +26,6 @@
 #include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/data.hpp>
-#include <ndn-cxx/selectors.hpp>
 #include <ndn-cxx/key-locator.hpp>
 #include <ndn-cxx/security/v2/key-chain.hpp>
 #include <ndn-cxx/security/v2/validator.hpp>
@@ -58,8 +57,6 @@ using ndn::Block;
 using ndn::Name;
 namespace name = ndn::name;
 using ndn::Interest;
-using ndn::Selectors;
-using ndn::Exclude;
 using ndn::Data;
 using ndn::KeyLocator;
 using ndn::Scheduler;

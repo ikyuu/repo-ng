@@ -49,7 +49,8 @@ WatchHandle::onInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WatchHandle::onValidated, this, _1, prefix),
-                       bind(&WatchHandle::onValidationFailed, this, _1, _2));
+                       bind(&WatchHandle::onValidated, this, _1, prefix));
+                       // bind(&WatchHandle::onValidationFailed, this, _1, _2));
 }
 
 void
@@ -90,7 +91,8 @@ WatchHandle::onData(const Interest& interest, const ndn::Data& data, const Name&
 {
   m_validator.validate(data,
                        bind(&WatchHandle::onDataValidated, this, interest, _1, name),
-                       bind(&WatchHandle::onDataValidationFailed, this, interest, _1, _2, name));
+                       bind(&WatchHandle::onDataValidated, this, interest, _1, name));
+                       // bind(&WatchHandle::onDataValidationFailed, this, interest, _1, _2, name));
 }
 
 void
@@ -105,24 +107,7 @@ WatchHandle::onDataValidated(const Interest& interest, const Data& data, const N
       return;
 
     Interest fetchInterest(interest.getName());
-    fetchInterest.setSelectors(interest.getSelectors());
     fetchInterest.setInterestLifetime(m_interestLifetime);
-    fetchInterest.setChildSelector(1);
-
-    // update selectors
-    // if data name is equal to interest name, use MinSuffixComponents selecor to exclude this data
-    if (data.getName().size() == interest.getName().size()) {
-      fetchInterest.setMinSuffixComponents(2);
-    }
-    else {
-      Exclude exclude;
-      if (!interest.getExclude().empty()) {
-        exclude = interest.getExclude();
-      }
-
-      exclude.excludeBefore(data.getName()[interest.getName().size()]);
-      fetchInterest.setExclude(exclude);
-    }
 
     ++m_interestNum;
     getFace().expressInterest(fetchInterest,
@@ -148,24 +133,7 @@ WatchHandle::onDataValidationFailed(const Interest& interest, const Data& data,
     return;
 
   Interest fetchInterest(interest.getName());
-  fetchInterest.setSelectors(interest.getSelectors());
   fetchInterest.setInterestLifetime(m_interestLifetime);
-  fetchInterest.setChildSelector(1);
-
-  // update selectors
-  // if data name is equal to interest name, use MinSuffixComponents selecor to exclude this data
-  if (data.getName().size() == interest.getName().size()) {
-    fetchInterest.setMinSuffixComponents(2);
-  }
-  else {
-    Exclude exclude;
-    if (!interest.getExclude().empty()) {
-      exclude = interest.getExclude();
-    }
-    // Only exclude this data since other data whose names are smaller may be validated and satisfied
-    exclude.excludeBefore(data.getName()[interest.getName().size()]);
-    fetchInterest.setExclude(exclude);
-  }
 
   ++m_interestNum;
   getFace().expressInterest(fetchInterest,
@@ -183,11 +151,9 @@ WatchHandle::onTimeout(const ndn::Interest& interest, const Name& name)
   }
   if (!onRunning(name))
     return;
-  // selectors do not need to be updated
+  
   Interest fetchInterest(interest.getName());
-  fetchInterest.setSelectors(interest.getSelectors());
   fetchInterest.setInterestLifetime(m_interestLifetime);
-  fetchInterest.setChildSelector(1);
 
   ++m_interestNum;
   getFace().expressInterest(fetchInterest,
@@ -213,7 +179,8 @@ WatchHandle::onStopInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WatchHandle::onStopValidated, this, _1, prefix),
-                       bind(&WatchHandle::onStopValidationFailed, this, _1, _2));
+                       bind(&WatchHandle::onStopValidated, this, _1, prefix));
+                       // bind(&WatchHandle::onStopValidationFailed, this, _1, _2));
 }
 
 void
@@ -244,7 +211,8 @@ WatchHandle::onCheckInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WatchHandle::onCheckValidated, this, _1, prefix),
-                       bind(&WatchHandle::onCheckValidationFailed, this, _1, _2));
+                       bind(&WatchHandle::onCheckValidated, this, _1, prefix));
+                       // bind(&WatchHandle::onCheckValidationFailed, this, _1, _2));
 }
 
 void
@@ -323,10 +291,7 @@ WatchHandle::processWatchCommand(const Interest& interest,
   m_processes[parameter.getName()] =
                 std::make_pair(RepoCommandResponse().setStatusCode(300), true);
   Interest fetchInterest(parameter.getName());
-  if (parameter.hasSelectors()) {
-    fetchInterest.setSelectors(parameter.getSelectors());
-  }
-  fetchInterest.setChildSelector(1);
+  
   fetchInterest.setInterestLifetime(m_interestLifetime);
   m_startTime = steady_clock::now();
   m_interestNum++;

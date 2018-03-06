@@ -25,7 +25,6 @@
 #include "index.hpp"
 #include "../repo-command-parameter.hpp"
 
-#include <ndn-cxx/exclude.hpp>
 #include <ndn-cxx/util/signal.hpp>
 
 #include <queue>
