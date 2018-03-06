@@ -32,7 +32,7 @@ using SignerTag = ndn::SimpleTag<ndn::Name, 20>;
 static ndn::optional<std::string>
 getSignerFromTag(const ndn::Interest& interest)
 {
-  shared_ptr<SignerTag> signerTag = interest.getTag<SignerTag>();
+  std::shared_ptr<SignerTag> signerTag = interest.getTag<SignerTag>();
   if (signerTag == nullptr) {
     return ndn::nullopt;
   }

@@ -111,11 +111,11 @@ Publisher::run()
 {
   if (mode == AUTO) {
     m_scheduler.scheduleEvent(timeInterval,
-                            bind(&Publisher::autoGenerate, this));
+                            std::bind(&Publisher::autoGenerate, this));
   }
   else {
     m_scheduler.scheduleEvent(timeInterval,
-                              bind(&Publisher::generateFromFile, this));
+                              std::bind(&Publisher::generateFromFile, this));
   }
   m_face.processEvents(duration);
 }
@@ -126,10 +126,9 @@ Publisher::autoGenerate()
   Name name = dataPrefix;
   name.appendNumber(m_range());
   std::shared_ptr<Data> data = createData(name);
-  // std::cout<<"data name = "<<data->getName()<<std::endl;
   m_face.put(*data);
   m_scheduler.scheduleEvent(timeInterval,
-                            bind(&Publisher::autoGenerate, this));
+                            std::bind(&Publisher::autoGenerate, this));
 }
 
 void
@@ -144,7 +143,7 @@ Publisher::generateFromFile()
   std::shared_ptr<Data> data = createData(Name(name));
   m_face.put(*data);
   m_scheduler.scheduleEvent(timeInterval,
-                            bind(&Publisher::generateFromFile, this));
+                            std::bind(&Publisher::generateFromFile, this));
 }
 
 std::shared_ptr<Data>

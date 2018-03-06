@@ -25,7 +25,6 @@
 #include <ndn-cxx/encoding/encoding-buffer.hpp>
 #include <ndn-cxx/encoding/block-helpers.hpp>
 #include <ndn-cxx/name.hpp>
-#include <ndn-cxx/selectors.hpp>
 #include <ndn-cxx/mgmt/control-parameters.hpp>
 
 namespace repo {
@@ -33,7 +32,6 @@ namespace repo {
 using ndn::Name;
 using ndn::Block;
 using ndn::EncodingImpl;
-using ndn::Selectors;
 using ndn::EncodingEstimator;
 using ndn::EncodingBuffer;
 using namespace ndn::time;
@@ -44,7 +42,6 @@ enum RepoParameterField {
   REPO_PARAMETER_END_BLOCK_ID,
   REPO_PARAMETER_PROCESS_ID,
   REPO_PARAMETER_MAX_INTEREST_NUM,
-  REPO_PARAMETER_WATCH_TIME_OUT,
   REPO_PARAMETER_INTEREST_LIFETIME,
   REPO_PARAMETER_UBOUND
 };
@@ -55,7 +52,6 @@ const std::string REPO_PARAMETER_FIELD[REPO_PARAMETER_UBOUND] = {
   "EndBlockId",
   "ProcessId",
   "MaxInterestNum",
-  "WatchTimeout",
   "InterestLifetime"
 };
 
@@ -104,20 +100,6 @@ public:
     return m_hasFields[REPO_PARAMETER_NAME];
   }
 
-  const Selectors&
-  getSelectors() const
-  {
-    return m_selectors;
-  }
-
-  RepoCommandParameter&
-  setSelectors(const Selectors& selectors);
-
-  bool
-  hasSelectors() const
-  {
-    return !m_selectors.empty();
-  }
 
   uint64_t
   getStartBlockId() const
@@ -184,22 +166,6 @@ public:
   }
 
   milliseconds
-  getWatchTimeout() const
-  {
-    assert(hasWatchTimeout());
-    return m_watchTimeout;
-  }
-
-  RepoCommandParameter&
-  setWatchTimeout(milliseconds watchTimeout);
-
-  bool
-  hasWatchTimeout() const
-  {
-    return m_hasFields[REPO_PARAMETER_WATCH_TIME_OUT];
-  }
-
-  milliseconds
   getInterestLifetime() const
   {
     assert(hasInterestLifetime());
@@ -233,12 +199,10 @@ public:
 private:
   std::vector<bool> m_hasFields;
   Name m_name;
-  Selectors m_selectors;
   uint64_t m_startBlockId;
   uint64_t m_endBlockId;
   uint64_t m_processId;
   uint64_t m_maxInterestNum;
-  milliseconds m_watchTimeout;
   milliseconds m_interestLifetime;
 
   mutable Block m_wire;

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014,  Regents of the University of California.
+ * Copyright (c) 2018,  Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -32,8 +32,8 @@ class RepoStorageFixture
 {
 public:
   RepoStorageFixture()
-    : store(make_shared<SqliteStorage>("unittestdb"))
-    , handle(new RepoStorage(static_cast<int64_t>(65535), *store))
+    : store(std::make_shared<SqliteStorage>("unittestdb"))
+    , handle(std::make_shared<RepoStorage>(*store))
   {
   }
 
@@ -44,8 +44,8 @@ public:
 
 
 public:
-  shared_ptr<Storage> store;
-  shared_ptr<RepoStorage> handle;
+  std::shared_ptr<Storage> store;
+  std::shared_ptr<RepoStorage> handle;
 };
 
 } // namespace tests

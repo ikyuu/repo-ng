@@ -28,10 +28,6 @@
 
 namespace repo {
 
-using std::map;
-using std::pair;
-using std::queue;
-
 /**
  * @brief WriteHandle provides basic credit based congestion control.
  *
@@ -82,10 +78,10 @@ private:
   {
     //ProcessId id;
     RepoCommandResponse response;
-    queue<SegmentNo> nextSegmentQueue;  ///< queue of waiting segment
+    std::queue<SegmentNo> nextSegmentQueue;  ///< queue of waiting segment
                                         ///  to be sent when having credits
     SegmentNo nextSegment;  ///< last segment put into the nextSegmentQueue
-    map<SegmentNo, int> retryCounts;  ///< to store retrying times of timeout segment
+    std::map<SegmentNo, int> retryCounts;  ///< to store retrying times of timeout segment
     int credit;  ///< congestion control credits of process
 
     /**
@@ -213,7 +209,9 @@ private:
 
 private:
   Validator& m_validator;
-  map<ProcessId, ProcessInfo> m_processes;
+
+  std::map<ProcessId, ProcessInfo> m_processes;
+
   int m_retryTime;
   int m_credit;
   ndn::time::milliseconds m_noEndTimeout;

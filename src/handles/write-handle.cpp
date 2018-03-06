@@ -64,10 +64,6 @@ WriteHandle::handleInsertCommand(const Name& prefix, const Interest& interest,
     dynamic_cast<RepoCommandParameter*>(const_cast<ndn::mgmt::ControlParameters*>(&parameter));
 
   if (repoParameter->hasStartBlockId() || repoParameter->hasEndBlockId()) {
-    if (repoParameter->hasSelectors()) {
-      done(negativeReply("BlockId present. BlockId is not supported in this protocol", 402));
-      return;
-    }
     processSegmentedInsertCommand(interest, *repoParameter, done);
   }
   else {
@@ -81,8 +77,8 @@ void
 WriteHandle::onData(const Interest& interest, const Data& data, ProcessId processId)
 {
   m_validator.validate(data,
-                       bind(&WriteHandle::onDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       std::bind(&WriteHandle::onDataValidated, this, interest, _1, processId),
+                       std::bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
@@ -113,8 +109,8 @@ void
 WriteHandle::onSegmentData(const Interest& interest, const Data& data, ProcessId processId)
 {
   m_validator.validate(data,
-                       bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       std::bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId),
+                       std::bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
@@ -169,7 +165,7 @@ WriteHandle::segInit(ProcessId processId, const RepoCommandParameter& parameter)
   ProcessInfo& process = m_processes[processId];
   process.credit = 0;
 
-  map<SegmentNo, int>& processRetry = process.retryCounts;
+  std::map<SegmentNo, int>& processRetry = process.retryCounts;
 
   Name name = parameter.getName();
   SegmentNo startBlockId = parameter.getStartBlockId();
@@ -194,14 +190,14 @@ WriteHandle::segInit(ProcessId processId, const RepoCommandParameter& parameter)
     Interest interest(fetchName);
     interest.setInterestLifetime(m_interestLifetime);
     face.expressInterest(interest,
-                              bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
-                              bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
-                              bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
+                         std::bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
+                         std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
+                         std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
     process.credit--;
     processRetry[segment] = 0;
   }
 
-  queue<SegmentNo>& nextSegmentQueue = process.nextSegmentQueue;
+  std::queue<SegmentNo>& nextSegmentQueue = process.nextSegmentQueue;
 
   process.nextSegment = segment;
   nextSegmentQueue.push(segment);
@@ -220,8 +216,8 @@ WriteHandle::onSegmentDataControl(ProcessId processId, const Interest& interest)
   //When data returns, processCredit++
   processCredit++;
   SegmentNo& nextSegment = process.nextSegment;
-  queue<SegmentNo>& nextSegmentQueue = process.nextSegmentQueue;
-  map<SegmentNo, int>& retryCounts = process.retryCounts;
+  std::queue<SegmentNo>& nextSegmentQueue = process.nextSegmentQueue;
+  std::map<SegmentNo, int>& retryCounts = process.retryCounts;
 
   //read whether notime timeout
   if (!response.hasEndBlockId()) {
@@ -289,9 +285,9 @@ WriteHandle::onSegmentDataControl(ProcessId processId, const Interest& interest)
   Interest fetchInterest(fetchName);
   fetchInterest.setInterestLifetime(m_interestLifetime);
   face.expressInterest(fetchInterest,
-                            bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
-                            bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
-                            bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
+                       std::bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
+                       std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
+                       std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
   //When an interest is expressed, processCredit--
   processCredit--;
   if (retryCounts.count(sendingSegment) == 0) {
@@ -319,7 +315,7 @@ WriteHandle::onSegmentTimeoutControl(ProcessId processId, const Interest& intere
   // RepoCommandResponse& response = process.response;
   // SegmentNo& nextSegment = process.nextSegment;
   // queue<SegmentNo>& nextSegmentQueue = process.nextSegmentQueue;
-  map<SegmentNo, int>& retryCounts = process.retryCounts;
+  std::map<SegmentNo, int>& retryCounts = process.retryCounts;
 
   SegmentNo timeoutSegment = interest.getName().get(-1).toSegment();
 
@@ -341,9 +337,9 @@ WriteHandle::onSegmentTimeoutControl(ProcessId processId, const Interest& intere
     Interest retryInterest(interest.getName());
     retryInterest.setInterestLifetime(m_interestLifetime);
     face.expressInterest(retryInterest,
-                              bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
-                              bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
-                              bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
+                         std::bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
+                         std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId), // Nack
+                         std::bind(&WriteHandle::onSegmentTimeout, this, _1, processId));
   }
 
 }
@@ -390,7 +386,7 @@ void
 WriteHandle::deferredDeleteProcess(ProcessId processId)
 {
   scheduler.scheduleEvent(PROCESS_DELETE_TIME,
-                               bind(&WriteHandle::deleteProcess, this, processId));
+                          std::bind(&WriteHandle::deleteProcess, this, processId));
 }
 
 void
@@ -412,13 +408,10 @@ WriteHandle::processSingleInsertCommand(const Interest& interest, RepoCommandPar
 
   Interest fetchInterest(parameter.getName());
   fetchInterest.setInterestLifetime(m_interestLifetime);
-  if (parameter.hasSelectors()) {
-    fetchInterest.setSelectors(parameter.getSelectors());
-  }
   face.expressInterest(fetchInterest,
-                       bind(&WriteHandle::onData, this, _1, _2, processId),
-                       bind(&WriteHandle::onTimeout, this, _1, processId), // Nack
-                       bind(&WriteHandle::onTimeout, this, _1, processId));
+                       std::bind(&WriteHandle::onData, this, _1, _2, processId),
+                       std::bind(&WriteHandle::onTimeout, this, _1, processId), // Nack
+                       std::bind(&WriteHandle::onTimeout, this, _1, processId));
 }
 
 void

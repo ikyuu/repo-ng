@@ -33,9 +33,9 @@
 #include <iostream>
 #include <string>
 
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/asio.hpp>
 #include <boost/iostreams/operations.hpp>
 #include <boost/iostreams/read.hpp>
 
@@ -161,7 +161,7 @@ private:
   bool m_isFinished;
   ndn::Name m_dataPrefix;
 
-  typedef std::map<uint64_t, shared_ptr<ndn::Data> > DataContainer;
+  using DataContainer = std::map<uint64_t, shared_ptr<ndn::Data> >;
   DataContainer m_data;
   ndn::security::CommandInterestSigner m_cmdSigner;
 };

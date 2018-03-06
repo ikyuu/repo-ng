@@ -47,14 +47,15 @@ Consumer::fetchData(const Name& name)
   }
   else {
     interest.setMustBeFresh(true);
-    interest.setChildSelector(1);
   }
 
+  interest.setCanBePrefix(m_canBePrefix);
+
   m_face.expressInterest(interest,
-                         m_hasVersion ? bind(&Consumer::onVersionedData, this, _1, _2)
-                                      : bind(&Consumer::onUnversionedData, this, _1, _2),
-                         bind(&Consumer::onTimeout, this, _1), // Nack
-                         bind(&Consumer::onTimeout, this, _1));
+                         m_hasVersion ? std::bind(&Consumer::onVersionedData, this, _1, _2)
+                                      : std::bind(&Consumer::onUnversionedData, this, _1, _2),
+                         std::bind(&Consumer::onTimeout, this, _1), // Nack
+                         std::bind(&Consumer::onTimeout, this, _1));
 }
 
 void
@@ -112,7 +113,6 @@ void
 Consumer::onUnversionedData(const Interest& interest, const Data& data)
 {
   const Name& name = data.getName();
-  //std::cout<<"recevied data name = "<<name<<std::endl;
   if (name.size() == m_dataName.size() + 1) {
     if (!m_isSingle) {
       Name fetchName = name;

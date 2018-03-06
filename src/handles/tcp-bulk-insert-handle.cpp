@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -29,7 +29,7 @@ class TcpBulkInsertClient : noncopyable
 {
 public:
   TcpBulkInsertClient(TcpBulkInsertHandle& writer,
-                      const shared_ptr<boost::asio::ip::tcp::socket>& socket)
+                      const std::shared_ptr<boost::asio::ip::tcp::socket>& socket)
     : m_writer(writer)
     , m_socket(socket)
     , m_hasStarted(false)
@@ -38,13 +38,13 @@ public:
   }
 
   static void
-  startReceive(const shared_ptr<TcpBulkInsertClient>& client)
+  startReceive(const std::shared_ptr<TcpBulkInsertClient>& client)
   {
     BOOST_ASSERT(!client->m_hasStarted);
 
     client->m_socket->async_receive(
       boost::asio::buffer(client->m_inputBuffer, MAX_NDN_PACKET_SIZE), 0,
-      bind(&TcpBulkInsertClient::handleReceive, client, _1, _2, client));
+      std::bind(&TcpBulkInsertClient::handleReceive, client, _1, _2, client));
 
     client->m_hasStarted = true;
   }
@@ -53,11 +53,11 @@ private:
   void
   handleReceive(const boost::system::error_code& error,
                 std::size_t nBytesReceived,
-                const shared_ptr<TcpBulkInsertClient>& client);
+                const std::shared_ptr<TcpBulkInsertClient>& client);
 
 private:
   TcpBulkInsertHandle& m_writer;
-  shared_ptr<boost::asio::ip::tcp::socket> m_socket;
+  std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
   bool m_hasStarted;
   uint8_t m_inputBuffer[MAX_NDN_PACKET_SIZE];
   std::size_t m_inputBufferSize;
@@ -91,17 +91,16 @@ TcpBulkInsertHandle::listen(const std::string& host, const std::string& port)
 
   m_acceptor.open(m_localEndpoint .protocol());
   m_acceptor.set_option(ip::tcp::acceptor::reuse_address(true));
-  if (m_localEndpoint.address().is_v6())
-    {
+  if (m_localEndpoint.address().is_v6()) {
       m_acceptor.set_option(ip::v6_only(true));
     }
   m_acceptor.bind(m_localEndpoint);
   m_acceptor.listen(255);
 
-  shared_ptr<ip::tcp::socket> clientSocket =
-    make_shared<ip::tcp::socket>(std::ref(m_acceptor.get_io_service()));
+  std::shared_ptr<ip::tcp::socket> clientSocket =
+    std::make_shared<ip::tcp::socket>(std::ref(m_acceptor.get_io_service()));
   m_acceptor.async_accept(*clientSocket,
-                          bind(&TcpBulkInsertHandle::handleAccept, this, _1,
+                          std::bind(&TcpBulkInsertHandle::handleAccept, this, _1,
                                clientSocket));
 }
 
@@ -114,7 +113,7 @@ TcpBulkInsertHandle::stop()
 
 void
 TcpBulkInsertHandle::handleAccept(const boost::system::error_code& error,
-                                  const shared_ptr<boost::asio::ip::tcp::socket>& socket)
+                                  const std::shared_ptr<boost::asio::ip::tcp::socket>& socket)
 {
   using namespace boost::asio;
 
@@ -126,25 +125,24 @@ TcpBulkInsertHandle::handleAccept(const boost::system::error_code& error,
 
   std::cerr << "New connection from " << socket->remote_endpoint() << std::endl;
 
-  shared_ptr<detail::TcpBulkInsertClient> client =
-    make_shared<detail::TcpBulkInsertClient>(std::ref(*this), socket);
+  std::shared_ptr<detail::TcpBulkInsertClient> client =
+    std::make_shared<detail::TcpBulkInsertClient>(std::ref(*this), socket);
   detail::TcpBulkInsertClient::startReceive(client);
 
   // prepare accepting the next connection
-  shared_ptr<ip::tcp::socket> clientSocket =
-    make_shared<ip::tcp::socket>(std::ref(m_acceptor.get_io_service()));
+  std::shared_ptr<ip::tcp::socket> clientSocket =
+    std::make_shared<ip::tcp::socket>(std::ref(m_acceptor.get_io_service()));
   m_acceptor.async_accept(*clientSocket,
-                          bind(&TcpBulkInsertHandle::handleAccept, this, _1,
+                          std::bind(&TcpBulkInsertHandle::handleAccept, this, _1,
                                clientSocket));
 }
 
 void
 detail::TcpBulkInsertClient::handleReceive(const boost::system::error_code& error,
                                            std::size_t nBytesReceived,
-                                           const shared_ptr<detail::TcpBulkInsertClient>& client)
+                                           const std::shared_ptr<detail::TcpBulkInsertClient>& client)
 {
-  if (error)
-    {
+  if (error) {
       if (error == boost::system::errc::operation_canceled) // when socket is closed by someone
         return;
 
@@ -152,7 +150,7 @@ detail::TcpBulkInsertClient::handleReceive(const boost::system::error_code& erro
       m_socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, error);
       m_socket->close(error);
       return;
-    }
+  }
 
   m_inputBufferSize += nBytesReceived;
 
@@ -186,31 +184,27 @@ detail::TcpBulkInsertClient::handleReceive(const boost::system::error_code& erro
     }
   }
 
-  if (!isOk && m_inputBufferSize == MAX_NDN_PACKET_SIZE && offset == 0)
-    {
-      boost::system::error_code error;
-      m_socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, error);
-      m_socket->close(error);
-      return;
-    }
+  if (!isOk && m_inputBufferSize == MAX_NDN_PACKET_SIZE && offset == 0) {
+    boost::system::error_code error;
+    m_socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, error);
+    m_socket->close(error);
+    return;
+  }
 
-  if (offset > 0)
-    {
-      if (offset != m_inputBufferSize)
-        {
+  if (offset > 0) {
+      if (offset != m_inputBufferSize) {
           std::copy(m_inputBuffer + offset, m_inputBuffer + m_inputBufferSize,
                     m_inputBuffer);
           m_inputBufferSize -= offset;
-        }
-      else
-        {
+      }
+      else {
           m_inputBufferSize = 0;
-        }
+      }
     }
 
   m_socket->async_receive(boost::asio::buffer(m_inputBuffer + m_inputBufferSize,
                                               MAX_NDN_PACKET_SIZE - m_inputBufferSize), 0,
-                          bind(&TcpBulkInsertClient::handleReceive, this, _1, _2, client));
+                          std::bind(&TcpBulkInsertClient::handleReceive, this, _1, _2, client));
 }
 
 

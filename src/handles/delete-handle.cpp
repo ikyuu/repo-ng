@@ -40,12 +40,6 @@ DeleteHandle::handleDeleteCommand(const Name& prefix, const Interest& interest,
 {
   const RepoCommandParameter& repoParameter = dynamic_cast<const RepoCommandParameter&>(parameter);
 
-  if (repoParameter.hasSelectors()) {
-    //choose data with selector and delete it
-    processSelectorDeleteCommand(interest, repoParameter, done);
-    return;
-  }
-
   if (!repoParameter.hasStartBlockId() && !repoParameter.hasEndBlockId()) {
     processSingleDeleteCommand(interest, repoParameter, done);
     return;
@@ -92,20 +86,6 @@ DeleteHandle::processSingleDeleteCommand(const Interest& interest, const RepoCom
   }
   else
   done(positiveReply(interest, parameter, 200, nDeletedData));
-}
-
-void
-DeleteHandle::processSelectorDeleteCommand(const Interest& interest, const RepoCommandParameter& parameter,
-                                           const ndn::mgmt::CommandContinuation& done) const
-{
-  int64_t nDeletedData = storageHandle.deleteData(Interest(parameter.getName())
-                                      .setSelectors(parameter.getSelectors()));
-  if (nDeletedData == -1) {
-    std::cerr << "Deletion Failed!" <<std::endl;
-    done(negativeReply(interest, 405, "Deletion Failed"));
-  }
-  else
-    done(positiveReply(interest, parameter, 200, nDeletedData));
 }
 
 void

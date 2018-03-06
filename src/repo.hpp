@@ -23,10 +23,11 @@
 #include "storage/repo-storage.hpp"
 #include "storage/sqlite-storage.hpp"
 
+#include "handles/read-handle.hpp"
+#include "handles/write-handle.hpp"
 #include "handles/delete-handle.hpp"
 #include "handles/read-handle.hpp"
 #include "handles/tcp-bulk-insert-handle.hpp"
-#include "handles/watch-handle.hpp"
 #include "handles/write-handle.hpp"
 
 #include "common.hpp"
@@ -95,7 +96,6 @@ private:
 
   ReadHandle m_readHandle;
   WriteHandle m_writeHandle;
-  WatchHandle m_watchHandle;
   DeleteHandle m_deleteHandle;
   TcpBulkInsertHandle m_tcpBulkInsertHandle;
 };
