@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -27,8 +27,14 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include <ndn-cxx/util/logger.hpp>
+
+#include <ndn-cxx/util/time.hpp>
+
 namespace repo {
 namespace tests {
+
+NDN_LOG_INIT(repo.tests.read);
 
 // All the test cases in this test suite should be run at once.
 BOOST_AUTO_TEST_SUITE(TestBasicInerestRead)
@@ -67,9 +73,12 @@ public:
       (*i)->setContent(content, sizeof(content));
       (*i)->setFreshnessPeriod(ndn::time::milliseconds(36000));
       keyChain.sign(**i);
+      NDN_LOG_DEBUG(**i);
       bool rc = handle->insertData(**i);
 
       BOOST_CHECK_EQUAL(rc, true);
+      NDN_LOG_DEBUG("Inserted Data " << (**i).getName());
+
       Interest readInterest((*i)->getName());
       readInterest.setMustBeFresh(true);
       scheduler.scheduleEvent(ndn::time::milliseconds(timeCount * 50),
@@ -89,15 +98,25 @@ public:
   void
   onReadTimeout(const ndn::Interest& interest)
   {
-    BOOST_ERROR("Insert not successfull or Read data does not successfull");
+    NDN_LOG_DEBUG("Timed out " << interest.getName());
+    std::cout << interest.getName() << std::endl;
+    BOOST_ERROR("Insert or read not successfull");
+  }
+
+  void
+  onReadNack(const ndn::Interest& interest, const ndn::lp::Nack& nack)
+  {
+    NDN_LOG_DEBUG("Nacked " << interest.getName() << nack.getReason());
+    BOOST_ERROR("Read nacked");
   }
 
   void
   sendInterest(const ndn::Interest& interest)
   {
+    NDN_LOG_DEBUG("Sending Interest " << interest.getName());
     readFace.expressInterest(interest,
                              bind(&BasicInterestReadFixture::onReadData, this, _1, _2),
-                             bind(&BasicInterestReadFixture::onReadTimeout, this, _1), // Nack
+                             bind(&BasicInterestReadFixture::onReadNack, this, _1, _2), // Nack
                              bind(&BasicInterestReadFixture::onReadTimeout, this, _1));
   }
 
@@ -112,8 +131,6 @@ public:
 
 typedef boost::mpl::vector< BasicDataset,
                             FetchByPrefixDataset,
-                            BasicChildSelectorDataset,
-                            ExtendedChildSelectorDataset,
                             SamePrefixDataset<10> > Datasets;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(Read, T, Datasets, BasicInterestReadFixture<T>)
@@ -127,7 +144,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(Read, T, Datasets, BasicInterestReadFixture<T>)
   // BOOST_CHECK_EQUAL(this->handle.size(), this->data.size());
 
   this->startListen();
-  this->scheduler.scheduleEvent(ndn::time::seconds(0),
+  this->scheduler.scheduleEvent(ndn::time::seconds(1),
                                 bind(&BasicInterestReadFixture<T>::scheduleReadEvent, this));
 
   this->repoFace.processEvents(ndn::time::seconds(20));

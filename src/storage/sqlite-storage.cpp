@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -19,22 +19,24 @@
 
 #include "sqlite-storage.hpp"
 #include "config.hpp"
-#include "index.hpp"
 
 #include <ndn-cxx/util/sha256.hpp>
+#include <ndn-cxx/util/sqlite3-statement.hpp>
+
 #include <boost/filesystem.hpp>
 #include <istream>
 
+#include <ndn-cxx/util/logger.hpp>
+
 namespace repo {
 
-using std::string;
+NDN_LOG_INIT(repo.SqliteStorage);
 
 SqliteStorage::SqliteStorage(const string& dbPath)
-  : m_size(0)
 {
   if (dbPath.empty()) {
-    std::cerr << "Create db file in local location [" << dbPath << "]. " << std::endl
-              << "You can assign the path using -d option" << std::endl;
+    NDN_LOG_DEBUG("Create db file in local location [" << dbPath << "]. " );
+    NDN_LOG_DEBUG("You can assign the path using -d option" );
     m_dbPath = string("ndn_repo.db");
   }
   else {
@@ -57,6 +59,7 @@ SqliteStorage::initializeRepo()
 {
   char* errMsg = 0;
 
+
   int rc = sqlite3_open_v2(m_dbPath.c_str(), &m_db,
                            SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
 #ifdef DISABLE_SQLITE3_FS_LOCKING
@@ -70,13 +73,14 @@ SqliteStorage::initializeRepo()
     sqlite3_exec(m_db, "CREATE TABLE NDN_REPO ("
                       "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
                       "name BLOB, "
-                      "data BLOB, "
-                      "keylocatorHash BLOB);\n "
+                      "data BLOB);\n"
                  , 0, 0, &errMsg);
     // Ignore errors (when database already exists, errors are expected)
+    sqlite3_exec(m_db, "CREATE UNIQUE INDEX index_name ON NDN_REPO (name);"
+                 , 0, 0, &errMsg);
   }
   else {
-    std::cerr << "Database file open failure rc:" << rc << std::endl;
+    NDN_LOG_DEBUG("Database file open failure rc:" << rc);
     BOOST_THROW_EXCEPTION(Error("Database file open failure"));
   }
   sqlite3_exec(m_db, "PRAGMA synchronous = OFF", 0, 0, &errMsg);
@@ -88,210 +92,190 @@ SqliteStorage::~SqliteStorage()
   sqlite3_close(m_db);
 }
 
-void
-SqliteStorage::fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f)
-{
-  sqlite3_stmt* m_stmt = 0;
-  int rc = SQLITE_DONE;
-  string sql = string("SELECT id, name, keylocatorHash FROM NDN_REPO;");
-  rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &m_stmt, 0);
-  if (rc != SQLITE_OK)
-    BOOST_THROW_EXCEPTION(Error("Initiation Read Entries from Database Prepare error"));
-  int entryNumber = 0;
-  while (true) {
-    rc = sqlite3_step(m_stmt);
-    if (rc == SQLITE_ROW) {
-
-      ItemMeta item;
-      item.fullName.wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(m_stmt, 1)),
-                                     sqlite3_column_bytes(m_stmt, 1)));
-      item.id = sqlite3_column_int(m_stmt, 0);
-      item.keyLocatorHash = make_shared<const ndn::Buffer>(sqlite3_column_blob(m_stmt, 3),
-                                                           sqlite3_column_bytes(m_stmt, 3));
-
-      try {
-        f(item);
-      }
-      catch (...) {
-        sqlite3_finalize(m_stmt);
-        throw;
-      }
-      entryNumber++;
-    }
-    else if (rc == SQLITE_DONE) {
-      sqlite3_finalize(m_stmt);
-      break;
-    }
-    else {
-      std::cerr << "Initiation Read Entries rc:" << rc << std::endl;
-      sqlite3_finalize(m_stmt);
-      BOOST_THROW_EXCEPTION(Error("Initiation Read Entries error"));
-    }
-  }
-  m_size = entryNumber;
-}
-
 int64_t
 SqliteStorage::insert(const Data& data)
 {
-  Name name = data.getName();
+  Name name = data.getFullName(); // store the full name
 
-  Index::Entry entry(data, 0); //the id is not used
-  int64_t id = -1;
   if (name.empty()) {
-    std::cerr << "name is empty" << std::endl;
+    NDN_LOG_DEBUG("name is empty");
     return -1;
   }
 
   int rc = 0;
 
-  sqlite3_stmt* insertStmt = 0;
+  string insertSql = string("INSERT INTO NDN_REPO (id, name, data) "
+                            "VALUES (?, ?, ?)");
+  ndn::util::Sqlite3Statement stmt(m_db, insertSql);
 
-  string insertSql = string("INSERT INTO NDN_REPO (id, name, data, keylocatorHash) "
-                            "VALUES (?, ?, ?, ?)");
-
-  if (sqlite3_prepare_v2(m_db, insertSql.c_str(), -1, &insertStmt, 0) != SQLITE_OK) {
-    sqlite3_finalize(insertStmt);
-    std::cerr << "insert sql not prepared" << std::endl;
-  }
   //Insert
-  auto result = sqlite3_bind_null(insertStmt, 1);
+  auto result = sqlite3_bind_null(stmt.operator sqlite3_stmt*(), 1);
   if (result == SQLITE_OK) {
-    result = sqlite3_bind_blob(insertStmt, 2,
-                               entry.getName().wireEncode().wire(),
-                               entry.getName().wireEncode().size(), SQLITE_STATIC);
+    result = stmt.bind(2, name.wireEncode().value(),
+                          name.wireEncode().value_size(), SQLITE_STATIC);
   }
   if (result == SQLITE_OK) {
-    result = sqlite3_bind_blob(insertStmt, 3,
-                               data.wireEncode().wire(),
-                               data.wireEncode().size(), SQLITE_STATIC);
-  }
-  if (result == SQLITE_OK) {
-    BOOST_ASSERT(entry.getKeyLocatorHash()->size() == ndn::util::Sha256::DIGEST_SIZE);
-    result = sqlite3_bind_blob(insertStmt, 4,
-                               entry.getKeyLocatorHash()->data(),
-                               entry.getKeyLocatorHash()->size(), SQLITE_STATIC);
+    result = stmt.bind(3, data.wireEncode().wire(),
+                       data.wireEncode().size(), SQLITE_STATIC);
   }
 
+  int id = 0;
   if (result == SQLITE_OK) {
-    rc = sqlite3_step(insertStmt);
+    rc = stmt.step();
     if (rc == SQLITE_CONSTRAINT) {
-      std::cerr << "Insert failed" << std::endl;
-      sqlite3_finalize(insertStmt);
+      std::cout << "rc: " << rc << " SQLITE_CONSTRAINT:" << SQLITE_CONSTRAINT;
+      NDN_LOG_DEBUG("Insert failed");
       BOOST_THROW_EXCEPTION(Error("Insert failed"));
      }
-    sqlite3_reset(insertStmt);
-     m_size++;
-     id = sqlite3_last_insert_rowid(m_db);
+    sqlite3_reset(stmt.operator sqlite3_stmt*());
+    id = sqlite3_last_insert_rowid(m_db);
   }
   else {
     BOOST_THROW_EXCEPTION(Error("Some error with insert"));
   }
-
-  sqlite3_finalize(insertStmt);
   return id;
 }
 
-
 bool
-SqliteStorage::erase(const int64_t id)
+SqliteStorage::erase(const Name& name)
 {
-  sqlite3_stmt* deleteStmt = 0;
+  string deleteSql = "DELETE FROM NDN_REPO WHERE name = ? ;";
+  ndn::util::Sqlite3Statement stmt(m_db, deleteSql);
 
-  string deleteSql = string("DELETE from NDN_REPO where id = ?;");
+  auto result = stmt.bind(1,
+                          name.wireEncode().value(),
+                          name.wireEncode().value_size(), SQLITE_STATIC);
 
-  if (sqlite3_prepare_v2(m_db, deleteSql.c_str(), -1, &deleteStmt, 0) != SQLITE_OK) {
-    sqlite3_finalize(deleteStmt);
-    std::cerr << "delete statement prepared failed" << std::endl;
-    BOOST_THROW_EXCEPTION(Error("delete statement prepared failed"));
-  }
-
-  if (sqlite3_bind_int64(deleteStmt, 1, id) == SQLITE_OK) {
-    int rc = sqlite3_step(deleteStmt);
+  if (result == SQLITE_OK) {
+    int rc = stmt.step();
     if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
-      std::cerr << " node delete error rc:" << rc << std::endl;
-      sqlite3_finalize(deleteStmt);
+      NDN_LOG_DEBUG(" node delete error rc:" << rc);
       BOOST_THROW_EXCEPTION(Error(" node delete error"));
     }
-    if (sqlite3_changes(m_db) != 1)
+    if (sqlite3_changes(m_db) != 1){
       return false;
-    m_size--;
+      }
   }
   else {
-    std::cerr << "delete bind error" << std::endl;
-    sqlite3_finalize(deleteStmt);
+    NDN_LOG_DEBUG("delete bind error" );
     BOOST_THROW_EXCEPTION(Error("delete bind error"));
   }
-  sqlite3_finalize(deleteStmt);
   return true;
 }
 
-
 shared_ptr<Data>
-SqliteStorage::read(const int64_t id)
+SqliteStorage::read(const Name& name)
 {
-  sqlite3_stmt* queryStmt = 0;
-  string sql = string("SELECT * FROM NDN_REPO WHERE id = ? ;");
-  int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &queryStmt, 0);
-  if (rc == SQLITE_OK) {
-    if (sqlite3_bind_int64(queryStmt, 1, id) == SQLITE_OK) {
-      rc = sqlite3_step(queryStmt);
-      if (rc == SQLITE_ROW) {
-        auto data = make_shared<Data>();
-        data->wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 2)),
-                               sqlite3_column_bytes(queryStmt, 2)));
-        sqlite3_finalize(queryStmt);
-        return data;
+  std::pair<std::pair<int64_t, Name>, shared_ptr<Data>> res = find(name);
+
+  if (res.first.first == 0)
+    return nullptr;
+  else {
+    NDN_LOG_DEBUG("Found in database id: " << " " << res.first.first << " name: " << res.first.second);
+    return res.second;
+  }
+}
+
+bool
+SqliteStorage::has(const Name& name)
+{
+  // find exact match
+  std::pair<int64_t, Name> res = find(name, true).first;
+  return (res.first == 0) ? false : true;
+}
+
+std::pair<std::pair<int64_t, Name>, shared_ptr<Data>>
+SqliteStorage::find(const Name& name, bool exactMatch)
+{
+  NDN_LOG_DEBUG("Trying to find: " << name);
+  Name name_successor = name.getSuccessor();
+
+  string sql;
+  if (exactMatch)
+    sql = "SELECT * FROM NDN_REPO WHERE name = ? ;";
+  else
+    sql = "SELECT * FROM NDN_REPO WHERE name >= ? and name < ?;";
+
+  ndn::util::Sqlite3Statement stmt(m_db, sql);
+
+  auto result = stmt.bind(1,
+                          name.wireEncode().value(),
+                          name.wireEncode().value_size(), SQLITE_STATIC);
+
+  // this is the code for using getsuccessor to locate prefix match items
+  if ((result == SQLITE_OK) && !exactMatch) {
+    // Use V in TLV for prefix match when there is no exact match
+    result = stmt.bind(2,
+                    name_successor.wireEncode().value(),
+                    name_successor.wireEncode().value_size(), SQLITE_STATIC);
+    }
+  NDN_LOG_DEBUG("The name of next successor: " << name.getSuccessor());
+
+  if (result == SQLITE_OK) {
+    int rc = stmt.step();
+    if (rc == SQLITE_ROW) {
+      Name foundName;
+      // const uint8_t* buffer = static_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 1));
+      // size_t nBytesLeft = sqlite3_column_bytes(queryStmt, 1);
+
+      // while (nBytesLeft > 0) {
+      //   bool hasDecodingSucceeded;
+      //   name::Component component;
+      //   std::tie(hasDecodingSucceeded, component) = Block::fromBuffer(buffer, nBytesLeft);
+      //   if (!hasDecodingSucceeded) {
+      //     BOOST_THROW_EXCEPTION(Error("Error while decoding name from the database"));
+      //   }
+      //   foundName.append(component);
+      //   buffer += component.size();
+      //   nBytesLeft -= component.size();
+      // }
+
+      NDN_LOG_DEBUG("sql Found: " << foundName << " " << stmt.getInt(0));
+
+      auto data = make_shared<Data>();
+      try {
+        data->wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(stmt.operator sqlite3_stmt*(), 2)),
+                                sqlite3_column_bytes(stmt.operator sqlite3_stmt*(), 2)));
       }
-      else if (rc == SQLITE_DONE) {
-        return nullptr;
+      catch (const ndn::Block::Error& error) {
+        NDN_LOG_DEBUG(error.what());
+        return std::make_pair(std::make_pair(0, Name()), nullptr);;
       }
-      else {
-        std::cerr << "Database query failure rc:" << rc << std::endl;
-        sqlite3_finalize(queryStmt);
-        BOOST_THROW_EXCEPTION(Error("Database query failure"));
-      }
+      NDN_LOG_DEBUG("Data from db: " << *data);
+
+      foundName = data->getFullName();
+
+      if ((exactMatch && name == foundName) || (!exactMatch && name.isPrefixOf(foundName)))
+        return std::make_pair(std::make_pair(stmt.getInt(0), foundName), data);
+    }
+    else if (rc == SQLITE_DONE) {
+      return std::make_pair(std::make_pair(0, Name()), make_shared<Data>());
     }
     else {
-      std::cerr << "select bind error" << std::endl;
-      sqlite3_finalize(queryStmt);
-      BOOST_THROW_EXCEPTION(Error("select bind error"));
+      NDN_LOG_DEBUG("Database query failure rc:" << rc);
+      BOOST_THROW_EXCEPTION(Error("Database query failure"));
     }
-    sqlite3_finalize(queryStmt);
   }
   else {
-    sqlite3_finalize(queryStmt);
-    std::cerr << "select statement prepared failed" << std::endl;
-    BOOST_THROW_EXCEPTION(Error("select statement prepared failed"));
+    NDN_LOG_DEBUG("select bind error");
+    BOOST_THROW_EXCEPTION(Error("select bind error"));
   }
-  return nullptr;
+  return std::make_pair(std::make_pair(0, Name()), nullptr);
 }
 
 int64_t
 SqliteStorage::size()
 {
-  sqlite3_stmt* queryStmt = 0;
   string sql("SELECT count(*) FROM NDN_REPO ");
-  int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &queryStmt, 0);
-  if (rc != SQLITE_OK)
-    {
-      std::cerr << "Database query failure rc:" << rc << std::endl;
-      sqlite3_finalize(queryStmt);
+  ndn::util::Sqlite3Statement stmt(m_db, sql);
+
+  int rc = stmt.step();
+  if (rc != SQLITE_ROW){
+      NDN_LOG_DEBUG("Database query failure rc:" << rc);
       BOOST_THROW_EXCEPTION(Error("Database query failure"));
     }
 
-  rc = sqlite3_step(queryStmt);
-  if (rc != SQLITE_ROW)
-    {
-      std::cerr << "Database query failure rc:" << rc << std::endl;
-      sqlite3_finalize(queryStmt);
-      BOOST_THROW_EXCEPTION(Error("Database query failure"));
-    }
-
-  int64_t nDatas = sqlite3_column_int64(queryStmt, 0);
-  if (m_size != nDatas) {
-    std::cerr << "The size of database is not correct! " << std::endl;
-  }
+  int64_t nDatas = stmt.getInt(0);
   return nDatas;
 }
 

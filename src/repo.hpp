@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -26,7 +26,6 @@
 
 #include "handles/read-handle.hpp"
 #include "handles/write-handle.hpp"
-#include "handles/watch-handle.hpp"
 #include "handles/delete-handle.hpp"
 #include "handles/tcp-bulk-insert-handle.hpp"
 
@@ -92,7 +91,6 @@ private:
   ValidatorConfig m_validator;
   ReadHandle m_readHandle;
   WriteHandle m_writeHandle;
-  WatchHandle m_watchHandle;
   DeleteHandle m_deleteHandle;
   TcpBulkInsertHandle m_tcpBulkInsertHandle;
 };

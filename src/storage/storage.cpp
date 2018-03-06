@@ -17,20 +17,29 @@
  * repo-ng, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "command-fixture.hpp"
+#include "storage.hpp"
+
+#include <ndn-cxx/util/sha256.hpp>
+#include <ndn-cxx/security/signature-sha256-with-rsa.hpp>
+#include <ndn-cxx/util/string-helper.hpp>
 
 namespace repo {
-namespace tests {
 
-CommandFixture::CommandFixture()
-  : scheduler(repoFace.getIoService())
-  , keyChain(m_keyChain)
-  , validator(repoFace)
+std::string
+Storage::toByteaHex(const uint8_t* s, size_t count)
 {
-  this->saveIdentityCertificate(keyChain.getPib().getDefaultIdentity().getName(),
-                                "tests/integrated/insert-delete-test.cert");
-  validator.load("tests/integrated/insert-delete-validator-config.conf");
+  return "E'\\\\x" + ndn::toHex(s, count) + "'";
 }
 
-} // namespace tests
+std::string
+Storage::toByteaHex(const ndn::Block& block, bool wantValueOnly)
+{
+  if (wantValueOnly) {
+    return toByteaHex(block.value(), block.value_size());
+  }
+  else {
+    return toByteaHex(block.wire(), block.size());
+  }
+}
+
 } // namespace repo
