@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014,  Regents of the University of California.
+ * Copyright (c) 2018,  Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -21,7 +21,6 @@
 #define REPO_STORAGE_SQLITE_STORAGE_HPP
 
 #include "storage.hpp"
-#include "index.hpp"
 #include <string>
 #include <iostream>
 #include <sqlite3.h>
@@ -33,6 +32,7 @@
 namespace repo {
 
 using std::queue;
+using std::string;
 
 class SqliteStorage : public Storage
 {
@@ -41,14 +41,14 @@ public:
   {
   public:
     explicit
-    Error(const std::string& what)
+    Error(const string& what)
       : std::runtime_error(what)
     {
     }
   };
 
   explicit
-  SqliteStorage(const std::string& dbPath);
+  SqliteStorage(const string& dbPath);
 
   virtual
   ~SqliteStorage();
@@ -68,12 +68,24 @@ public:
   virtual bool
   erase(const int64_t id);
 
+  virtual std::shared_ptr<Data>
+  readData(int64_t id);
+
   /**
    *  @brief  get the data from database
    *  @para   id   id number of each entry in the database, used to find the data
    */
   virtual std::shared_ptr<Data>
-  read(const int64_t id);
+  read(int64_t id);
+
+  virtual std::shared_ptr<Data>
+  read(const Name& name);
+
+  virtual bool
+  has(const Name& name);
+
+  virtual std::pair<int64_t, Name>
+  find(const Name& name, bool exactMatch = false);
 
   /**
    *  @brief  return the size of database
@@ -81,20 +93,13 @@ public:
   virtual int64_t
   size();
 
-  /**
-   *  @brief enumerate each entry in database and call the function
-   *         insertItemToIndex to reubuild index from database
-   */
-  void
-  fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f);
-
 private:
   void
   initializeRepo();
 
 private:
   sqlite3* m_db;
-  std::string m_dbPath;
+  string m_dbPath;
   int64_t m_size;
 };
 

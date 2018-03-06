@@ -17,20 +17,43 @@
  * repo-ng, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "command-fixture.hpp"
+#include "storage.hpp"
+
+#include <ndn-cxx/util/sha256.hpp>
+#include <ndn-cxx/security/signature-sha256-with-rsa.hpp>
+#include <ndn-cxx/util/string-helper.hpp>
 
 namespace repo {
-namespace tests {
 
-CommandFixture::CommandFixture()
-  : scheduler(repoFace.getIoService())
-  , keyChain(m_keyChain)
-  , validator(repoFace)
+const ndn::ConstBufferPtr
+Storage::computeKeyLocatorHash(const Data& data)
 {
-  this->saveIdentityCertificate(keyChain.getPib().getDefaultIdentity().getName(),
-                                "tests/integrated/insert-delete-test.cert");
-  validator.load("tests/integrated/insert-delete-validator-config.conf");
+  const ndn::Signature& signature = data.getSignature();
+  if (signature.hasKeyLocator()) {
+    const Block& block = signature.getKeyLocator().wireEncode();
+    return ndn::util::Sha256::computeDigest(block.wire(), block.size());
+  }
+  else {
+    BOOST_THROW_EXCEPTION(Error("Data has no KeyLocator!"));
+  }
+  return NULL;
 }
 
-} // namespace tests
-} // namespace repo
+std::string
+Storage::toByteaHex(const uint8_t* s, size_t count)
+{
+  return "E'\\\\x" + ndn::toHex(s, count) + "'";
+}
+
+std::string
+Storage::toByteaHex(const ndn::Block& block, bool wantValueOnly)
+{
+  if (wantValueOnly) {
+    return toByteaHex(block.value(), block.value_size());
+  }
+  else {
+    return toByteaHex(block.wire(), block.size());
+  }
+}
+
+}// namespace repo

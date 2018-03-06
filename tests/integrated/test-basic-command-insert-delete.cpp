@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -30,13 +30,21 @@
 
 #include <boost/mpl/vector.hpp>
 #include <boost/test/unit_test.hpp>
+#include <ndn-cxx/util/time.hpp>
+#include <ndn-cxx/security/command-interest-signer.hpp>
+#include <ndn-cxx/security/signing-helpers.hpp>
+
+#include <ndn-cxx/util/logger.hpp>
 
 namespace repo {
 namespace tests {
 
+NDN_LOG_INIT(repo.tests.command);
+
 using ndn::time::milliseconds;
 using ndn::time::seconds;
 using ndn::EventId;
+
 
 // All the test cases in this test suite should be run at once.
 BOOST_AUTO_TEST_SUITE(TestBasicCommandInsertDelete)
@@ -52,6 +60,7 @@ public:
     , deleteHandle(repoFace, *handle, keyChain, scheduler, validator)
     , insertFace(repoFace.getIoService())
     , deleteFace(repoFace.getIoService())
+
   {
     Name cmdPrefix("/repo/command");
     repoFace.registerPrefix(cmdPrefix, nullptr,
@@ -107,6 +116,8 @@ public:
   Face insertFace;
   Face deleteFace;
   std::map<Name, EventId> insertEvents;
+  //initialize the last use timestamp
+  ndn::time::milliseconds m_lastUsedTimestamp = 0_ms;
 };
 
 template<class T> void
@@ -116,9 +127,11 @@ Fixture<T>::onInsertInterest(const Interest& interest)
   data.setContent(content, sizeof(content));
   data.setFreshnessPeriod(milliseconds(0));
   keyChain.sign(data);
+  NDN_LOG_DEBUG(data);
   insertFace.put(data);
   std::map<Name, EventId>::iterator event = insertEvents.find(interest.getName());
   if (event != insertEvents.end()) {
+    NDN_LOG_DEBUG("Timeout canceled. " << interest.getName());
     scheduler.cancelEvent(event->second);
     insertEvents.erase(event);
   }
@@ -148,7 +161,6 @@ Fixture<T>::onInsertData(const Interest& interest, const Data& data)
   response.wireDecode(data.getContent().blockFromValue());
   int statusCode = response.getStatusCode();
   BOOST_CHECK_EQUAL(statusCode, 100);
-  //  std::cout<<"statuse code of insert name = "<<response.getName()<<std::endl;
 }
 
 template<class T> void
@@ -215,6 +227,7 @@ Fixture<T>::checkDeleteOk(const Interest& interest)
   BOOST_CHECK_EQUAL(data, shared_ptr<Data>());
 }
 
+
 template<class T> void
 Fixture<T>::scheduleInsertEvent()
 {
@@ -227,18 +240,32 @@ Fixture<T>::scheduleInsertEvent()
                             .appendNumber(ndn::random::generateWord64()));
 
     insertCommandName.append(insertParameter.wireEncode());
+
+    // add timestamp for insert command interest
+    // prepare timestamp
+    ndn::time::milliseconds timestamp = ndn::time::toUnixTimestamp(ndn::time::system_clock::now());
+    if (timestamp <= m_lastUsedTimestamp) {
+      timestamp = m_lastUsedTimestamp + 1_ms;
+    }
+    m_lastUsedTimestamp = timestamp;
+    insertCommandName.append(name::Component::fromNumber(timestamp.count()));
+
+    insertCommandName.append(name::Component::fromNumber(ndn::random::generateWord64()));
     Interest insertInterest(insertCommandName);
     keyChain.sign(insertInterest);
-    //schedule a job to express insertInterest every 50ms
+
+    NDN_LOG_DEBUG("Insert Interest: " << insertInterest);
+
+    // schedule a job to express insertInterest every 50ms
     scheduler.scheduleEvent(milliseconds(timeCount * 50 + 1000),
                             bind(&Fixture<T>::sendInsertInterest, this, insertInterest));
-    //schedule what to do when interest timeout
+    // schedule what to do when interest timeout
 
     EventId delayEventId = scheduler.scheduleEvent(milliseconds(5000 + timeCount * 50),
                                                    bind(&Fixture<T>::delayedInterest, this));
     insertEvents[insertParameter.getName()] = delayEventId;
 
-    //The delayEvent will be canceled in onInsertInterest
+    // The delayEvent will be canceled in onInsertInterest
     insertFace.setInterestFilter(insertParameter.getName(),
                                  bind(&Fixture<T>::onInsertInterest, this, _2),
                                  ndn::RegisterPrefixSuccessCallback(),
@@ -258,6 +285,17 @@ Fixture<T>::scheduleDeleteEvent()
     deleteParameter.setProcessId(ndn::random::generateWord64());
     deleteParameter.setName((*i)->getName());
     deleteCommandName.append(deleteParameter.wireEncode());
+    // deleteCommandName.appendTimestamp();
+    ndn::time::milliseconds timestamp = ndn::time::toUnixTimestamp(ndn::time::system_clock::now());
+    if (timestamp <= m_lastUsedTimestamp) {
+      timestamp = m_lastUsedTimestamp + 1_ms;
+    }
+    // std::cout<< "this is the m_lastUsedTimestamp " << m_lastUsedTimestamp<<std::endl;
+    // std::cout<< "this is the timestamp           " << timestamp<< std::endl;
+    m_lastUsedTimestamp = timestamp;
+    deleteCommandName.append(name::Component::fromNumber(timestamp.count()));
+
+    deleteCommandName.appendNumber(ndn::random::generateWord64());
     Interest deleteInterest(deleteCommandName);
     keyChain.sign(deleteInterest);
     scheduler.scheduleEvent(milliseconds(4000 + timeCount * 50),
@@ -268,8 +306,6 @@ Fixture<T>::scheduleDeleteEvent()
 
 typedef boost::mpl::vector< BasicDataset,
                             FetchByPrefixDataset,
-                            BasicChildSelectorDataset,
-                            ExtendedChildSelectorDataset,
                             SamePrefixDataset<10> > Datasets;
 
 BOOST_FIXTURE_TEST_CASE_TEMPLATE(InsertDelete, T, Datasets, Fixture<T>)

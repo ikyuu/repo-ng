@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -70,9 +70,6 @@ private:
 
   void
   processSingleDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
-
-  void
-  processSelectorDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
 
   void
   processSegmentDeleteCommand(const Interest& interest, RepoCommandParameter& parameter);
