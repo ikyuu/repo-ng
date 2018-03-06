@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -26,7 +26,6 @@
 #include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/data.hpp>
-#include <ndn-cxx/selectors.hpp>
 #include <ndn-cxx/key-locator.hpp>
 #include <ndn-cxx/security/v2/key-chain.hpp>
 #include <ndn-cxx/security/v2/validator.hpp>
@@ -58,8 +57,6 @@ using ndn::Block;
 using ndn::Name;
 namespace name = ndn::name;
 using ndn::Interest;
-using ndn::Selectors;
-using ndn::Exclude;
 using ndn::Data;
 using ndn::KeyLocator;
 using ndn::Scheduler;
@@ -67,12 +64,6 @@ using ndn::security::v2::KeyChain;
 using ndn::security::v2::Validator;
 using ndn::security::v2::ValidationError;
 using ndn::security::ValidatorConfig;
-
-using std::shared_ptr;
-using std::make_shared;
-using std::bind;
-using std::placeholders::_1;
-using std::placeholders::_2;
 
 using boost::noncopyable;
 

@@ -66,7 +66,7 @@ def build(bld):
         features=["cxx"],
         source=bld.path.ant_glob(['src/**/*.cpp'],
                                  excl=['src/main.cpp']),
-        use='NDN_CXX BOOST SQLITE3',
+        use='NDN_CXX BOOST SQLITE3 SYNC',
         includes="src",
         export_includes="src",
         )

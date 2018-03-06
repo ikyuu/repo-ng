@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -169,7 +169,7 @@ NdnRepoWatch::startWatchCommand()
       parameters.setMaxInterestNum(maxInterestNum);
     }
     if (hasTimeout) {
-      parameters.setWatchTimeout(watchTimeout);
+      parameters.setSyncTimeout(watchTimeout);
     }
     ndn::Interest commandInterest = generateCommandInterest(repoPrefix, "start", parameters);
     m_face.expressInterest(commandInterest,
@@ -178,7 +178,7 @@ NdnRepoWatch::startWatchCommand()
                            bind(&NdnRepoWatch::onWatchCommandTimeout, this, _1), // Nack
                            bind(&NdnRepoWatch::onWatchCommandTimeout, this, _1));
   }
-  else if (status == STOP){
+  else if (status == STOP) {
     ndn::Interest commandInterest = generateCommandInterest(repoPrefix, "stop", parameters);
     m_face.expressInterest(commandInterest,
                            bind(&NdnRepoWatch::onWatchCommandResponse, this,
@@ -186,7 +186,7 @@ NdnRepoWatch::startWatchCommand()
                            bind(&NdnRepoWatch::onWatchCommandTimeout, this, _1), // Nack
                            bind(&NdnRepoWatch::onWatchCommandTimeout, this, _1));
   }
-  else if (status == CHECK){
+  else if (status == CHECK) {
     ndn::Interest commandInterest = generateCommandInterest(repoPrefix, "check", parameters);
     m_face.expressInterest(commandInterest,
                            bind(&NdnRepoWatch::onWatchCommandResponse, this,

@@ -47,8 +47,9 @@ Consumer::fetchData(const Name& name)
   }
   else {
     interest.setMustBeFresh(true);
-    interest.setChildSelector(1);
   }
+
+  interest.setCanBePrefix(m_canBePrefix);
 
   m_face.expressInterest(interest,
                          m_hasVersion ? bind(&Consumer::onVersionedData, this, _1, _2)
@@ -167,7 +168,7 @@ Consumer::fetchNextData(const Name& name, const Data& data)
   uint64_t segment = name[-1].toSegment();
   BOOST_VERIFY(segment == (m_nextSegment - 1));
 
-  const ndn::name::Component& finalBlockId = data.getMetaInfo().getFinalBlockId();
+  const ndn::name::Component& finalBlockId = *data.getMetaInfo().getFinalBlock();
   if (finalBlockId == name[-1]) {
     m_isFinished = true;
   }

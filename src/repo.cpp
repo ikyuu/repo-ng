@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -20,7 +20,11 @@
 #include "repo.hpp"
 #include "storage/sqlite-storage.hpp"
 
+#include <ndn-cxx/util/logger.hpp>
+
 namespace repo {
+
+NDN_LOG_INIT(repo);
 
 RepoConfig
 parseConfig(const std::string& configPath)
@@ -31,7 +35,7 @@ parseConfig(const std::string& configPath)
 
   std::ifstream fin(configPath.c_str());
  if (!fin.is_open())
-    BOOST_THROW_EXCEPTION(Repo::Error("failed to open configuration file '"+ configPath +"'"));
+    BOOST_THROW_EXCEPTION(Repo::Error("failed to open configuration file '" + configPath + "'"));
 
   using namespace boost::property_tree;
   ptree propertyTree;
@@ -39,7 +43,7 @@ parseConfig(const std::string& configPath)
     read_info(fin, propertyTree);
   }
   catch (const ptree_error& e) {
-    BOOST_THROW_EXCEPTION(Repo::Error("failed to read configuration file '"+ configPath +"'"));
+    BOOST_THROW_EXCEPTION(Repo::Error("failed to read configuration file '" + configPath + "'"));
   }
 
   ptree repoConf = propertyTree.get_child("repo");
@@ -112,11 +116,10 @@ Repo::Repo(boost::asio::io_service& ioService, const RepoConfig& config)
   , m_scheduler(ioService)
   , m_face(ioService)
   , m_store(std::make_shared<SqliteStorage>(config.dbPath))
-  , m_storageHandle(config.nMaxPackets, *m_store)
+  , m_storageHandle(*m_store)
   , m_validator(m_face)
   , m_readHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_config.registrationSubset)
   , m_writeHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_validator)
-  , m_watchHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_validator)
   , m_deleteHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_validator)
   , m_tcpBulkInsertHandle(ioService, m_storageHandle)
 
@@ -129,10 +132,9 @@ Repo::initializeStorage()
 {
   // Rebuild storage if storage checkpoin exists
   ndn::time::steady_clock::TimePoint start = ndn::time::steady_clock::now();
-  m_storageHandle.initialize();
   ndn::time::steady_clock::TimePoint end = ndn::time::steady_clock::now();
   ndn::time::milliseconds cost = ndn::time::duration_cast<ndn::time::milliseconds>(end - start);
-  std::cerr << "initialize storage cost: " << cost << "ms" << std::endl;
+  NDN_LOG_DEBUG("initialize storage cost: " << cost << "ms");
 }
 
 void
@@ -150,7 +152,6 @@ Repo::enableListening()
       });
 
     m_writeHandle.listen(cmdPrefix);
-    m_watchHandle.listen(cmdPrefix);
     m_deleteHandle.listen(cmdPrefix);
   }
 

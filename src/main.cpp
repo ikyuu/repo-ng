@@ -41,13 +41,12 @@ terminate(boost::asio::io_service& ioService,
       ioService.stop();
       std::cout << "Caught signal '" << strsignal(signalNo) << "', exiting..." << std::endl;
     }
-  else
-    {
+  else {
       /// \todo May be try to reload config file
       signalSet.async_wait(std::bind(&terminate, std::ref(ioService),
                                      std::placeholders::_1, std::placeholders::_2,
                                      std::ref(signalSet)));
-    }
+  }
 }
 
 int

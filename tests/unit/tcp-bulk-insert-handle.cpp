@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014-2017,  Regents of the University of California.
+ * Copyright (c) 2014-2018,  Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -57,17 +57,16 @@ public:
     ip::tcp::endpoint serverEndpoint = *endpoint;
 
     socket.async_connect(serverEndpoint,
-                         bind(&TcpClient::onSuccessfullConnect, this, _1));
+                         std::bind(&TcpClient::onSuccessfullConnect, this, _1));
   }
 
   virtual void
   onSuccessfullConnect(const boost::system::error_code& error)
   {
-    if (error)
-      {
-        BOOST_FAIL("TCP connection aborted");
-        return;
-      }
+    if (error) {
+      BOOST_FAIL("TCP connection aborted");
+      return;
+    }
   }
 
 public:
@@ -86,7 +85,7 @@ public:
     , bulkInserter(ioService, *handle)
   {
     guardEvent = scheduler.scheduleEvent(ndn::time::seconds(2),
-                                         bind(&TcpBulkInsertFixture::fail, this, "Test timed out"));
+                                         std::bind(&TcpBulkInsertFixture::fail, this, "Test timed out"));
   }
 
   virtual void
@@ -106,11 +105,11 @@ public:
          i != this->data.end(); ++i) {
 
       socket.async_send(boost::asio::buffer((*i)->wireEncode().wire(),  (*i)->wireEncode().size()),
-                        bind(&TcpBulkInsertFixture::onSendFinished, this, _1, false));
+                        std::bind(&TcpBulkInsertFixture::onSendFinished, this, _1, false));
     }
 
     socket.async_send(boost::asio::buffer(static_cast<const uint8_t*>(0), 0),
-                      bind(&TcpBulkInsertFixture::onSendFinished, this, _1, true));
+                      std::bind(&TcpBulkInsertFixture::onSendFinished, this, _1, true));
   }
 
   void
@@ -127,7 +126,7 @@ public:
       // In case there are some outstanding handlers
       // ioService.post(bind(&TcpBulkInsertFixture::stop, this));
       scheduler.scheduleEvent(ndn::time::seconds(1),
-                              bind(&TcpBulkInsertFixture::stop, this));
+                              std::bind(&TcpBulkInsertFixture::stop, this));
     }
   }
 

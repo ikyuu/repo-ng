@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -32,8 +32,8 @@ DeleteHandle::DeleteHandle(Face& face, RepoStorage& storageHandle, KeyChain& key
 void
 DeleteHandle::onInterest(const Name& prefix, const Interest& interest)
 {
-  m_validator.validate(interest, bind(&DeleteHandle::onValidated, this, _1, prefix),
-                                 bind(&DeleteHandle::onValidationFailed, this, _1, _2));
+  m_validator.validate(interest, std::bind(&DeleteHandle::onValidated, this, _1, prefix),
+                                 std::bind(&DeleteHandle::onValidationFailed, this, _1, _2));
 }
 
 void
@@ -46,18 +46,6 @@ DeleteHandle::onValidated(const Interest& interest, const Name& prefix)
   }
   catch (RepoCommandParameter::Error) {
     negativeReply(interest, 403);
-    return;
-  }
-
-  if (parameter.hasSelectors()) {
-
-    if (parameter.hasStartBlockId() || parameter.hasEndBlockId()) {
-      negativeReply(interest, 402);
-      return;
-    }
-
-    //choose data with selector and delete it
-    processSelectorDeleteCommand(interest, parameter);
     return;
   }
 
@@ -80,7 +68,7 @@ void
 DeleteHandle::listen(const Name& prefix)
 {
   getFace().setInterestFilter(Name(prefix).append("delete"),
-                              bind(&DeleteHandle::onInterest, this, _1, _2));
+                              std::bind(&DeleteHandle::onInterest, this, _1, _2));
 }
 
 void
@@ -112,21 +100,6 @@ DeleteHandle::processSingleDeleteCommand(const Interest& interest,
                                          RepoCommandParameter& parameter)
 {
   int64_t nDeletedDatas = getStorageHandle().deleteData(parameter.getName());
-  if (nDeletedDatas == -1) {
-    std::cerr << "Deletion Failed!" <<std::endl;
-    negativeReply(interest, 405); //405 means deletion fail
-  }
-  else
-    positiveReply(interest, parameter, 200, nDeletedDatas);
-}
-
-void
-DeleteHandle::processSelectorDeleteCommand(const Interest& interest,
-                                           RepoCommandParameter& parameter)
-{
-  int64_t nDeletedDatas = getStorageHandle()
-                            .deleteData(Interest(parameter.getName())
-                                          .setSelectors(parameter.getSelectors()));
   if (nDeletedDatas == -1) {
     std::cerr << "Deletion Failed!" <<std::endl;
     negativeReply(interest, 405); //405 means deletion fail

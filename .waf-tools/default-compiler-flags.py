@@ -124,7 +124,7 @@ class GccBasicFlags(CompilerFlags):
     """
     def getGeneralFlags(self, conf):
         flags = super(GccBasicFlags, self).getGeneralFlags(conf)
-        flags['CXXFLAGS'] += ['-std=c++11']
+        flags['CXXFLAGS'] += ['-std=c++14']
         return flags
 
     def getDebugFlags(self, conf):

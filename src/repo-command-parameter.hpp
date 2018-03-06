@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017, Regents of the University of California.
+ * Copyright (c) 2014-2018, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -25,14 +25,12 @@
 #include <ndn-cxx/encoding/encoding-buffer.hpp>
 #include <ndn-cxx/encoding/block-helpers.hpp>
 #include <ndn-cxx/name.hpp>
-#include <ndn-cxx/selectors.hpp>
 
 namespace repo {
 
 using ndn::Name;
 using ndn::Block;
 using ndn::EncodingImpl;
-using ndn::Selectors;
 using ndn::EncodingEstimator;
 using ndn::EncodingBuffer;
 using namespace ndn::time;
@@ -61,7 +59,7 @@ public:
     , m_hasEndBlockId(false)
     , m_hasProcessId(false)
     , m_hasMaxInterestNum(false)
-    , m_hasWatchTimeout(false)
+    , m_hasSyncTimeout(false)
     , m_hasInterestLifetime(false)
   {
   }
@@ -93,25 +91,6 @@ public:
     return m_hasName;
   }
 
-  const Selectors&
-  getSelectors() const
-  {
-    return m_selectors;
-  }
-
-  RepoCommandParameter&
-  setSelectors(const Selectors& selectors)
-  {
-    m_selectors = selectors;
-    m_wire.reset();
-    return *this;
-  }
-
-  bool
-  hasSelectors() const
-  {
-    return !m_selectors.empty();
-  }
 
   uint64_t
   getStartBlockId() const
@@ -202,25 +181,25 @@ public:
   }
 
   milliseconds
-  getWatchTimeout() const
+  getSyncTimeout() const
   {
-    assert(hasWatchTimeout());
+    assert(hasSyncTimeout());
     return m_watchTimeout;
   }
 
   RepoCommandParameter&
-  setWatchTimeout(milliseconds watchTimeout)
+  setSyncTimeout(milliseconds watchTimeout)
   {
     m_watchTimeout = watchTimeout;
-    m_hasWatchTimeout = true;
+    m_hasSyncTimeout = true;
     m_wire.reset();
     return *this;
   }
 
   bool
-  hasWatchTimeout() const
+  hasSyncTimeout() const
   {
-    return m_hasWatchTimeout;
+    return m_hasSyncTimeout;
   }
 
   milliseconds
@@ -258,7 +237,6 @@ public:
 private:
 
   Name m_name;
-  Selectors m_selectors;
   uint64_t m_startBlockId;
   uint64_t m_endBlockId;
   uint64_t m_processId;
@@ -271,7 +249,7 @@ private:
   bool m_hasEndBlockId;
   bool m_hasProcessId;
   bool m_hasMaxInterestNum;
-  bool m_hasWatchTimeout;
+  bool m_hasSyncTimeout;
   bool m_hasInterestLifetime;
 
   mutable Block m_wire;
@@ -312,11 +290,11 @@ RepoCommandParameter::wireEncode(EncodingImpl<T>& encoder) const
     totalLength += encoder.prependVarNumber(tlv::MaxInterestNum);
   }
 
-  if (m_hasWatchTimeout) {
+  if (m_hasSyncTimeout) {
     variableLength = encoder.prependNonNegativeInteger(m_watchTimeout.count());
     totalLength += variableLength;
     totalLength += encoder.prependVarNumber(variableLength);
-    totalLength += encoder.prependVarNumber(tlv::WatchTimeout);
+    totalLength += encoder.prependVarNumber(tlv::SyncTimeout);
   }
 
   if (m_hasInterestLifetime) {
@@ -326,9 +304,6 @@ RepoCommandParameter::wireEncode(EncodingImpl<T>& encoder) const
     totalLength += encoder.prependVarNumber(tlv::InterestLifetime);
   }
 
-  if (!getSelectors().empty()) {
-    totalLength += getSelectors().wireEncode(encoder);
-  }
 
   if (m_hasName) {
     totalLength += getName().wireEncode(encoder);
@@ -363,7 +338,7 @@ RepoCommandParameter::wireDecode(const Block& wire)
   m_hasEndBlockId = false;
   m_hasProcessId = false;
   m_hasMaxInterestNum = false;
-  m_hasWatchTimeout = false;
+  m_hasSyncTimeout = false;
   m_hasInterestLifetime = false;
 
   m_wire = wire;
@@ -380,15 +355,6 @@ RepoCommandParameter::wireDecode(const Block& wire)
     m_hasName = true;
     m_name.wireDecode(m_wire.get(tlv::Name));
   }
-
-  // Selectors
-  val = m_wire.find(tlv::Selectors);
-  if (val != m_wire.elements_end())
-  {
-    m_selectors.wireDecode(*val);
-  }
-  else
-    m_selectors = Selectors();
 
   // StartBlockId
   val = m_wire.find(tlv::StartBlockId);
@@ -422,11 +388,11 @@ RepoCommandParameter::wireDecode(const Block& wire)
     m_maxInterestNum = readNonNegativeInteger(*val);
   }
 
-  // WatchTimeout
-  val = m_wire.find(tlv::WatchTimeout);
+  // SyncTimeout
+  val = m_wire.find(tlv::SyncTimeout);
   if (val != m_wire.elements_end())
   {
-    m_hasWatchTimeout = true;
+    m_hasSyncTimeout = true;
     m_watchTimeout = milliseconds(readNonNegativeInteger(*val));
   }
 
@@ -437,8 +403,6 @@ RepoCommandParameter::wireDecode(const Block& wire)
     m_hasInterestLifetime = true;
     m_interestLifetime = milliseconds(readNonNegativeInteger(*val));
   }
-
-
 }
 
 inline std::ostream&
@@ -466,9 +430,9 @@ operator<<(std::ostream& os, const RepoCommandParameter& repoCommandParameter)
   if (repoCommandParameter.hasMaxInterestNum()) {
     os << " MaxInterestNum: " << repoCommandParameter.getMaxInterestNum();
   }
-  // WatchTimeout
+  // SyncTimeout
   if (repoCommandParameter.hasProcessId()) {
-    os << " WatchTimeout: " << repoCommandParameter.getWatchTimeout();
+    os << " SyncTimeout: " << repoCommandParameter.getSyncTimeout();
   }
   // InterestLifetime
   if (repoCommandParameter.hasProcessId()) {

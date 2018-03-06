@@ -20,7 +20,11 @@
 #include "read-handle.hpp"
 #include "repo.hpp"
 
+#include <ndn-cxx/util/logger.hpp>
+
 namespace repo {
+
+NDN_LOG_INIT(repo.ReadHandle);
 
 ReadHandle::ReadHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
                        Scheduler& scheduler, size_t prefixSubsetLength)
@@ -35,11 +39,11 @@ ReadHandle::connectAutoListen()
 {
   // Connect a RepoStorage's signals to the read handle
   if (m_prefixSubsetLength != RepoConfig::DISABLED_SUBSET_LENGTH) {
-    afterDataDeletionConnection = m_storageHandle.afterDataInsertion.connect(
+    afterDataInsertionConnection = m_storageHandle.afterDataInsertion.connect(
       [this] (const Name& prefix) {
         onDataInserted(prefix);
       });
-    afterDataInsertionConnection = m_storageHandle.afterDataDeletion.connect(
+    afterDataDeletionConnection = m_storageHandle.afterDataDeletion.connect(
       [this] (const Name& prefix) {
         onDataDeleted(prefix);
       });
@@ -49,9 +53,14 @@ ReadHandle::connectAutoListen()
 void
 ReadHandle::onInterest(const Name& prefix, const Interest& interest)
 {
-  shared_ptr<ndn::Data> data = getStorageHandle().readData(interest);
+  NDN_LOG_DEBUG("Received Interest " << interest.getName());
+  std::shared_ptr<ndn::Data> data = getStorageHandle().readData(interest);
   if (data != nullptr) {
-      getFace().put(*data);
+    NDN_LOG_DEBUG("Put Data: " << *data);
+    getFace().put(*data);
+  }
+  else {
+    NDN_LOG_DEBUG("No data for " << interest.getName());
   }
 }
 
@@ -67,8 +76,8 @@ ReadHandle::listen(const Name& prefix)
 {
   ndn::InterestFilter filter(prefix);
   getFace().setInterestFilter(filter,
-                              bind(&ReadHandle::onInterest, this, _1, _2),
-                              bind(&ReadHandle::onRegisterFailed, this, _1, _2));
+                              std::bind(&ReadHandle::onInterest, this, _1, _2),
+                              std::bind(&ReadHandle::onRegisterFailed, this, _1, _2));
 }
 
 void
