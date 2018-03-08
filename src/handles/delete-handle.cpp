@@ -33,8 +33,7 @@ void
 DeleteHandle::onInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest, bind(&DeleteHandle::onValidated, this, _1, prefix),
-                                 bind(&DeleteHandle::onValidated, this, _1, prefix));
-                                 // bind(&DeleteHandle::onValidationFailed, this, _1, _2));
+                                 bind(&DeleteHandle::onValidationFailed, this, _1, _2));
 }
 
 void

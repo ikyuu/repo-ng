@@ -73,6 +73,7 @@ public:
       (*i)->setContent(content, sizeof(content));
       (*i)->setFreshnessPeriod(ndn::time::milliseconds(36000));
       keyChain.sign(**i);
+      NDN_LOG_DEBUG(**i);
       bool rc = handle->insertData(**i);
 
       BOOST_CHECK_EQUAL(rc, true);

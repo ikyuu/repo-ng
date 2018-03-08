@@ -27,6 +27,7 @@ CommandFixture::CommandFixture()
   , keyChain(m_keyChain)
   , validator(repoFace)
 {
+  std::cout<<keyChain.getPib().getDefaultIdentity().getName()<<std::endl;
   this->saveIdentityCertificate(keyChain.getPib().getDefaultIdentity().getName(),
                                 "tests/integrated/insert-delete-test.cert");
   validator.load("tests/integrated/insert-delete-validator-config.conf");

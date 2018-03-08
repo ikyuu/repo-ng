@@ -29,16 +29,23 @@
 #include <ndn-cxx/util/random.hpp>
 
 #include <boost/mpl/vector.hpp>
-#include <boost/test/unit_test.hpp> 
+#include <boost/test/unit_test.hpp>
 
 #include <ndn-cxx/util/time.hpp>
+#include <ndn-cxx/security/command-interest-signer.hpp>
+#include <ndn-cxx/security/signing-helpers.hpp>
+
+#include <ndn-cxx/util/logger.hpp>
 
 namespace repo {
 namespace tests {
 
+NDN_LOG_INIT(repo.tests.command);
+
 using ndn::time::milliseconds;
 using ndn::time::seconds;
 using ndn::EventId;
+
 
 // All the test cases in this test suite should be run at once.
 BOOST_AUTO_TEST_SUITE(TestBasicCommandInsertDelete)
@@ -54,6 +61,7 @@ public:
     , deleteHandle(repoFace, *handle, keyChain, scheduler, validator)
     , insertFace(repoFace.getIoService())
     , deleteFace(repoFace.getIoService())
+
   {
     Name cmdPrefix("/repo/command");
     repoFace.registerPrefix(cmdPrefix, nullptr,
@@ -109,6 +117,8 @@ public:
   Face insertFace;
   Face deleteFace;
   std::map<Name, EventId> insertEvents;
+  //initialize the last use timestamp
+  ndn::time::milliseconds m_lastUsedTimestamp = 0_ms;
 };
 
 template<class T> void
@@ -118,9 +128,11 @@ Fixture<T>::onInsertInterest(const Interest& interest)
   data.setContent(content, sizeof(content));
   data.setFreshnessPeriod(milliseconds(0));
   keyChain.sign(data);
+  NDN_LOG_DEBUG(data);
   insertFace.put(data);
   std::map<Name, EventId>::iterator event = insertEvents.find(interest.getName());
   if (event != insertEvents.end()) {
+    NDN_LOG_DEBUG("Timeout canceled. " << interest.getName());
     scheduler.cancelEvent(event->second);
     insertEvents.erase(event);
   }
@@ -216,6 +228,7 @@ Fixture<T>::checkDeleteOk(const Interest& interest)
   BOOST_CHECK_EQUAL(data, shared_ptr<Data>());
 }
 
+
 template<class T> void
 Fixture<T>::scheduleInsertEvent()
 {
@@ -228,9 +241,21 @@ Fixture<T>::scheduleInsertEvent()
                             .appendNumber(ndn::random::generateWord64()));
 
     insertCommandName.append(insertParameter.wireEncode());
+
     // add timestamp for insert command interest
-    insertCommandName.appendNumber(1);
-    insertCommandName.appendNumber(ndn::random::generateWord64());
+    //prepare timestamp 
+    ndn::time::milliseconds timestamp = ndn::time::toUnixTimestamp(ndn::time::system_clock::now());
+    if (timestamp <= m_lastUsedTimestamp) {
+      timestamp = m_lastUsedTimestamp + 1_ms;
+    }
+    // std::cout<< "this is the m_lastUsedTimestamp " << m_lastUsedTimestamp<<std::endl;
+    // std::cout<< "this is the timestamp           " << timestamp<< std::endl;
+    m_lastUsedTimestamp = timestamp;
+    insertCommandName.append(name::Component::fromNumber(timestamp.count()));
+    // std::cout<< "this is   timestamp name format " << name::Component::fromNumber(timestamp.count()) <<std::endl;
+    
+    insertCommandName.append(name::Component::fromNumber(ndn::random::generateWord64()));
+    // insertCommandName.appendNumber(ndn::random::generateWord64());
     Interest insertInterest(insertCommandName);
     keyChain.sign(insertInterest);
 
@@ -241,7 +266,7 @@ Fixture<T>::scheduleInsertEvent()
 
     EventId delayEventId = scheduler.scheduleEvent(milliseconds(5000 + timeCount * 50),
                                                    bind(&Fixture<T>::delayedInterest, this));
-    insertEvents[insertParameter.getName()] = delayEventId;
+    insertEvents[insertInterest.getName()] = delayEventId;
 
     //The delayEvent will be canceled in onInsertInterest
     insertFace.setInterestFilter(insertParameter.getName(),
@@ -263,7 +288,16 @@ Fixture<T>::scheduleDeleteEvent()
     deleteParameter.setProcessId(ndn::random::generateWord64());
     deleteParameter.setName((*i)->getName());
     deleteCommandName.append(deleteParameter.wireEncode());
-    deleteCommandName.appendTimestamp();
+    // deleteCommandName.appendTimestamp();
+    ndn::time::milliseconds timestamp = ndn::time::toUnixTimestamp(ndn::time::system_clock::now());
+    if (timestamp <= m_lastUsedTimestamp) {
+      timestamp = m_lastUsedTimestamp + 1_ms;
+    }
+    // std::cout<< "this is the m_lastUsedTimestamp " << m_lastUsedTimestamp<<std::endl;
+    // std::cout<< "this is the timestamp           " << timestamp<< std::endl;
+    m_lastUsedTimestamp = timestamp;
+    deleteCommandName.append(name::Component::fromNumber(timestamp.count()));
+
     deleteCommandName.appendNumber(ndn::random::generateWord64());
     Interest deleteInterest(deleteCommandName);
     keyChain.sign(deleteInterest);

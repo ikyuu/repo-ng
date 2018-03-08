@@ -51,8 +51,7 @@ WriteHandle::onInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
                        bind(&WriteHandle::onValidated, this, _1, prefix),
-                       // bind(&WriteHandle::onValidationFailed, this, _1, _2));
-                       bind(&WriteHandle::onValidated, this, _1, prefix));
+                       bind(&WriteHandle::onValidationFailed, this, _1, _2));
 }
 
 void
@@ -90,8 +89,7 @@ WriteHandle::onData(const Interest& interest, const Data& data, ProcessId proces
 {
   m_validator.validate(data,
                        bind(&WriteHandle::onDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onDataValidated, this, interest, _1, processId));
-                       // bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
@@ -125,8 +123,7 @@ WriteHandle::onSegmentData(const Interest& interest, const Data& data, ProcessId
 {
   m_validator.validate(data,
                        bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId),
-                       bind(&WriteHandle::onSegmentDataValidated, this, interest, _1, processId));
-                       // bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
+                       bind(&WriteHandle::onDataValidationFailed, this, _1, _2));
 }
 
 void
