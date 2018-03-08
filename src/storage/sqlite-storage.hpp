@@ -21,7 +21,6 @@
 #define REPO_STORAGE_SQLITE_STORAGE_HPP
 
 #include "storage.hpp"
-#include "index.hpp"
 #include <string>
 #include <iostream>
 #include <sqlite3.h>
@@ -68,25 +67,39 @@ public:
   virtual bool
   erase(const int64_t id);
 
+  virtual std::shared_ptr<Data>
+  readData(int64_t id);
+
   /**
    *  @brief  get the data from database
    *  @para   id   id number of each entry in the database, used to find the data
    */
   virtual std::shared_ptr<Data>
-  read(const int64_t id);
+  read(const Name& name);
+
+  virtual std::shared_ptr<Data>
+  read(int64_t id);
+
+  std::shared_ptr<Data>
+  readMore(const Name& name);
+
+  virtual bool
+  has(const Name& name);
+
+  virtual std::pair<int64_t, Name>
+  find(const Name& name, const std::string sql);
+
+  virtual std::pair<int64_t, Name>
+  find(const Name& name);
+
+  virtual std::pair<int64_t, Name>
+  findBigger(const Name& name);
 
   /**
    *  @brief  return the size of database
    */
   virtual int64_t
   size();
-
-  /**
-   *  @brief enumerate each entry in database and call the function
-   *         insertItemToIndex to reubuild index from database
-   */
-  void
-  fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f);
 
 private:
   void

@@ -28,34 +28,19 @@ namespace repo {
 
 NDN_LOG_INIT(repo.RepoStorage);
 
-RepoStorage::RepoStorage(const int64_t& nMaxPackets, Storage& store)
-  : m_index(nMaxPackets)
-  , m_storage(store)
+RepoStorage::RepoStorage(Storage& store)
+  : m_storage(store)
 {
-}
-
-void
-RepoStorage::initialize()
-{
-  NDN_LOG_DEBUG("Initialize");
-  m_storage.fullEnumerate(bind(&RepoStorage::insertItemToIndex, this, _1));
-}
-
-void
-RepoStorage::insertItemToIndex(const Storage::ItemMeta& item)
-{
-  NDN_LOG_DEBUG("Insert data to index " << item.fullName);
-  m_index.insert(item.fullName, item.id, item.keyLocatorHash);
-  afterDataInsertion(item.fullName);
 }
 
 bool
 RepoStorage::insertData(const Data& data)
 {
-  bool isExist = m_index.hasData(data);
+  bool isExist = m_storage.has(data.getName());
+
   if (isExist)
   {
-    NDN_LOG_DEBUG("Entry already in the Index, regarded as successful data insertion.");
+    NDN_LOG_DEBUG("Data already in database, regarded as successful data insertion.");
     return true;
   }
   else
@@ -64,10 +49,9 @@ RepoStorage::insertData(const Data& data)
     NDN_LOG_DEBUG("Insert ID: " << id);
     if (id == -1)
       return false;
-    bool didInsert = m_index.insert(data, id);
-    if (didInsert)
-      afterDataInsertion(data.getName());
-    return didInsert;
+
+    afterDataInsertion(data.getName());
+    return true;
   }
 }
 
@@ -75,21 +59,23 @@ ssize_t
 RepoStorage::deleteData(const Name& name)
 {
   bool hasError = false;
-  std::pair<int64_t,ndn::Name> idName = m_index.find(name);
-  if (idName.first == 0)
-    return false;
+  std::pair<int64_t, Name> idName = m_storage.find(name);
+  Name biggerName = name;
+  biggerName.append("/");
+  if (idName.first == 0) {
+    idName = m_storage.findBigger(biggerName);
+  }
   int64_t count = 0;
   while (idName.first != 0) {
     bool resultDb = m_storage.erase(idName.first);
-    bool resultIndex = m_index.erase(idName.second); //full name
-    if (resultDb && resultIndex) {
+    if (resultDb) {
       afterDataDeletion(idName.second);
       count++;
     }
     else {
       hasError = true;
     }
-    idName = m_index.find(name);
+    idName = m_storage.findBigger(biggerName);
   }
   if (hasError)
     return -1;
@@ -100,42 +86,15 @@ RepoStorage::deleteData(const Name& name)
 ssize_t
 RepoStorage::deleteData(const Interest& interest)
 {
-  Interest interestDelete = interest;
-  int64_t count = 0;
-  bool hasError = false;
-  std::pair<int64_t,ndn::Name> idName = m_index.find(interestDelete);
-  while (idName.first != 0) {
-    bool resultDb = m_storage.erase(idName.first);
-    bool resultIndex = m_index.erase(idName.second); //full name
-    if (resultDb && resultIndex) {
-      afterDataDeletion(idName.second);
-      count++;
-    }
-    else {
-      hasError = true;
-    }
-    idName = m_index.find(interestDelete);
-  }
-  if (hasError)
-    return -1;
-  else
-    return count;
+  return deleteData(interest.getName());
 }
 
 shared_ptr<Data>
 RepoStorage::readData(const Interest& interest) const
 {
   NDN_LOG_DEBUG("Reading data for " << interest.getName());
-  std::pair<int64_t,ndn::Name> idName = m_index.find(interest);
-  if (idName.first != 0) {
-    shared_ptr<Data> data = m_storage.read(idName.first);
-    if (data) {
-      NDN_LOG_DEBUG("Data found for " << interest.getName());
-      return data;
-    }
-  }
-  NDN_LOG_DEBUG("Data not found for " << interest.getName());
-  return shared_ptr<Data>();
+
+  return m_storage.read(interest.getName());
 }
 
 

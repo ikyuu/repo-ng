@@ -112,7 +112,7 @@ Repo::Repo(boost::asio::io_service& ioService, const RepoConfig& config)
   , m_scheduler(ioService)
   , m_face(ioService)
   , m_store(std::make_shared<SqliteStorage>(config.dbPath))
-  , m_storageHandle(config.nMaxPackets, *m_store)
+  , m_storageHandle(*m_store)
   , m_validator(m_face)
   , m_readHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_config.registrationSubset)
   , m_writeHandle(m_face, m_storageHandle, m_keyChain, m_scheduler, m_validator)
@@ -129,7 +129,6 @@ Repo::initializeStorage()
 {
   // Rebuild storage if storage checkpoin exists
   ndn::time::steady_clock::TimePoint start = ndn::time::steady_clock::now();
-  m_storageHandle.initialize();
   ndn::time::steady_clock::TimePoint end = ndn::time::steady_clock::now();
   ndn::time::milliseconds cost = ndn::time::duration_cast<ndn::time::milliseconds>(end - start);
   std::cerr << "initialize storage cost: " << cost << "ms" << std::endl;

@@ -19,13 +19,16 @@
 
 #include "sqlite-storage.hpp"
 #include "config.hpp"
-#include "index.hpp"
 
 #include <ndn-cxx/util/sha256.hpp>
 #include <boost/filesystem.hpp>
 #include <istream>
 
+#include <ndn-cxx/util/logger.hpp>
+
 namespace repo {
+
+NDN_LOG_INIT(repo.SqliteStorage);
 
 using std::string;
 
@@ -88,56 +91,11 @@ SqliteStorage::~SqliteStorage()
   sqlite3_close(m_db);
 }
 
-void
-SqliteStorage::fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f)
-{
-  sqlite3_stmt* m_stmt = 0;
-  int rc = SQLITE_DONE;
-  string sql = string("SELECT id, name, keylocatorHash FROM NDN_REPO;");
-  rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &m_stmt, 0);
-  if (rc != SQLITE_OK)
-    BOOST_THROW_EXCEPTION(Error("Initiation Read Entries from Database Prepare error"));
-  int entryNumber = 0;
-  while (true) {
-    rc = sqlite3_step(m_stmt);
-    if (rc == SQLITE_ROW) {
-
-      ItemMeta item;
-      item.fullName.wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(m_stmt, 1)),
-                                     sqlite3_column_bytes(m_stmt, 1)));
-      item.id = sqlite3_column_int(m_stmt, 0);
-      item.keyLocatorHash = make_shared<const ndn::Buffer>(sqlite3_column_blob(m_stmt, 3),
-                                                           sqlite3_column_bytes(m_stmt, 3));
-
-      try {
-        f(item);
-      }
-      catch (...) {
-        sqlite3_finalize(m_stmt);
-        throw;
-      }
-      entryNumber++;
-    }
-    else if (rc == SQLITE_DONE) {
-      sqlite3_finalize(m_stmt);
-      break;
-    }
-    else {
-      std::cerr << "Initiation Read Entries rc:" << rc << std::endl;
-      sqlite3_finalize(m_stmt);
-      BOOST_THROW_EXCEPTION(Error("Initiation Read Entries error"));
-    }
-  }
-  m_size = entryNumber;
-}
-
 int64_t
 SqliteStorage::insert(const Data& data)
 {
   Name name = data.getName();
 
-  Index::Entry entry(data, 0); //the id is not used
-  int64_t id = -1;
   if (name.empty()) {
     std::cerr << "name is empty" << std::endl;
     return -1;
@@ -158,8 +116,8 @@ SqliteStorage::insert(const Data& data)
   auto result = sqlite3_bind_null(insertStmt, 1);
   if (result == SQLITE_OK) {
     result = sqlite3_bind_blob(insertStmt, 2,
-                               entry.getName().wireEncode().wire(),
-                               entry.getName().wireEncode().size(), SQLITE_STATIC);
+                               data.getFullName().wireEncode().wire(),
+                               data.getFullName().wireEncode().size(), SQLITE_STATIC);
   }
   if (result == SQLITE_OK) {
     result = sqlite3_bind_blob(insertStmt, 3,
@@ -167,12 +125,14 @@ SqliteStorage::insert(const Data& data)
                                data.wireEncode().size(), SQLITE_STATIC);
   }
   if (result == SQLITE_OK) {
-    BOOST_ASSERT(entry.getKeyLocatorHash()->size() == ndn::util::Sha256::DIGEST_SIZE);
+    ndn::ConstBufferPtr keyLocatorHash = computeKeyLocatorHash(data);
+    BOOST_ASSERT(keyLocatorHash->size() == ndn::util::Sha256::DIGEST_SIZE);
     result = sqlite3_bind_blob(insertStmt, 4,
-                               entry.getKeyLocatorHash()->data(),
-                               entry.getKeyLocatorHash()->size(), SQLITE_STATIC);
+                               keyLocatorHash->data(),
+                               keyLocatorHash->size(), SQLITE_STATIC);
   }
 
+  int id = 0;
   if (result == SQLITE_OK) {
     rc = sqlite3_step(insertStmt);
     if (rc == SQLITE_CONSTRAINT) {
@@ -226,11 +186,10 @@ SqliteStorage::erase(const int64_t id)
   return true;
 }
 
-
 shared_ptr<Data>
-SqliteStorage::read(const int64_t id)
+SqliteStorage::readData(int64_t id)
 {
-  sqlite3_stmt* queryStmt = 0;
+  sqlite3_stmt* queryStmt = 0;  
   string sql = string("SELECT * FROM NDN_REPO WHERE id = ? ;");
   int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &queryStmt, 0);
   if (rc == SQLITE_OK) {
@@ -264,7 +223,101 @@ SqliteStorage::read(const int64_t id)
     std::cerr << "select statement prepared failed" << std::endl;
     BOOST_THROW_EXCEPTION(Error("select statement prepared failed"));
   }
+
   return nullptr;
+}
+
+shared_ptr<Data>
+SqliteStorage::read(const Name& name)
+{
+  std::pair<int64_t, Name> res = find(name);
+
+  if (res.first == 0)
+    return readMore(name);
+  else {
+    NDN_LOG_DEBUG("Found in database " << name << " " << res.first << res.second);
+    return readData(res.first);
+  }
+}
+
+shared_ptr<Data>
+SqliteStorage::read(int64_t id)
+{
+  return readData(id);
+}
+
+shared_ptr<Data>
+SqliteStorage::readMore(const Name& name)
+{
+  Name qName = name;
+  qName.append("/");
+  std::pair<int64_t, Name> res = findBigger(qName);
+
+  if (res.first == 0)
+    return nullptr;
+  else {
+    NDN_LOG_DEBUG("Found in database(more) " << name << " " << res.first << res.second);
+    return readData(res.first);
+  }
+}
+
+bool
+SqliteStorage::has(const Name& name)
+{
+  std::pair<int64_t, Name> res = find(name);
+  return (res.first == 0) ? false : true;
+}
+
+std::pair<int64_t, Name>
+SqliteStorage::find(const Name& name, const std::string sql)
+{
+  sqlite3_stmt* queryStmt = 0;
+  int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &queryStmt, 0);
+  if (rc == SQLITE_OK) {
+    if (sqlite3_bind_blob(queryStmt, 1, 
+                          name.wireEncode().wire(), name.wireEncode().size(), SQLITE_STATIC)
+        == SQLITE_OK) {
+      rc = sqlite3_step(queryStmt);
+      if (rc == SQLITE_ROW) {
+        Name dataName;
+        dataName.wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 1)),
+                               sqlite3_column_bytes(queryStmt, 1)));
+        return std::make_pair(sqlite3_column_int64(queryStmt, 0), dataName);
+      }
+      else if (rc == SQLITE_DONE) {
+        return std::make_pair(0, Name());
+      }
+      else {
+        std::cerr << "Database query failure rc:" << rc << std::endl;
+        sqlite3_finalize(queryStmt);
+        BOOST_THROW_EXCEPTION(Error("Database query failure"));
+      }
+    }
+    else {
+      std::cerr << "select bind error" << std::endl;
+      sqlite3_finalize(queryStmt);
+      BOOST_THROW_EXCEPTION(Error("select bind error"));
+    }
+    sqlite3_finalize(queryStmt);
+  }
+  else {
+    sqlite3_finalize(queryStmt);
+    std::cerr << "select statement prepared failed" << std::endl;
+    BOOST_THROW_EXCEPTION(Error("select statement prepared failed"));
+  }
+  return std::make_pair(0, Name());
+}
+
+std::pair<int64_t, Name>
+SqliteStorage::find(const Name& name)
+{
+  return find(name, string("SELECT * FROM NDN_REPO WHERE name = ? ;"));
+}
+
+std::pair<int64_t, Name>
+SqliteStorage::findBigger(const Name& name)
+{
+  return find(name, string("SELECT * FROM NDN_REPO WHERE name > ? ;"));
 }
 
 int64_t

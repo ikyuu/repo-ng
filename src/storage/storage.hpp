@@ -64,14 +64,26 @@ public:
    *  @param  id   id number of entry in the database
    */
   virtual bool
-  erase(const int64_t id) = 0;
+  erase(int64_t id) = 0;
 
   /**
    *  @brief  get the data from database
    *  @param  id   id number of each entry in the database, used to find the data
    */
   virtual std::shared_ptr<Data>
-  read(const int64_t id) = 0;
+  read(const Name& name) = 0;
+
+  virtual std::shared_ptr<Data>
+  read(int64_t id) = 0;
+
+  virtual bool
+  has(const Name& name) = 0;
+
+  virtual std::pair<int64_t, Name>
+  find(const Name& name) = 0;
+
+  virtual std::pair<int64_t, Name>
+  findBigger(const Name& name) = 0;
 
   /**
    *  @brief  return the size of database
@@ -79,12 +91,15 @@ public:
   virtual int64_t
   size() = 0;
 
+  const ndn::ConstBufferPtr
+  computeKeyLocatorHash(const Data& data);
+
   /**
    *  @brief enumerate each entry in database and call the function
    *         insertItemToIndex to reubuild index from database
    */
-  virtual void
-  fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f) = 0;
+  // virtual void
+  // fullEnumerate(const std::function<void(const Storage::ItemMeta)>& f) = 0;
 };
 
 } // namespace repo

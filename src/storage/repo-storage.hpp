@@ -22,7 +22,6 @@
 
 #include "../common.hpp"
 #include "storage.hpp"
-#include "index.hpp"
 #include "../repo-command-parameter.hpp"
 
 #include <ndn-cxx/util/signal.hpp>
@@ -49,13 +48,7 @@ public:
   };
 
 public:
-  RepoStorage(const int64_t& nMaxPackets, Storage& store);
-
-  /**
-   *  @brief  rebuild index from database
-   */
-  void
-  initialize();
+  RepoStorage(Storage& store);
 
   /**
    *  @brief  insert data into repo
@@ -89,16 +82,11 @@ public:
   std::shared_ptr<Data>
   readData(const Interest& interest) const;
 
-private:
-  void
-  insertItemToIndex(const Storage::ItemMeta& item);
-
 public:
   ndn::util::Signal<RepoStorage, ndn::Name> afterDataInsertion;
   ndn::util::Signal<RepoStorage, ndn::Name> afterDataDeletion;
 
 private:
-  Index m_index;
   Storage& m_storage;
 };
 

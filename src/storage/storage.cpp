@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014,  Regents of the University of California.
+/*
+ * Copyright (c) 2014-2017, Regents of the University of California.
  *
  * This file is part of NDN repo-ng (Next generation of NDN repository).
  * See AUTHORS.md for complete list of repo-ng authors and contributors.
@@ -17,38 +17,25 @@
  * repo-ng, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef REPO_TESTS_REPO_STORAGE_FIXTURE_HPP
-#define REPO_TESTS_REPO_STORAGE_FIXTURE_HPP
+#include "storage.hpp"
 
-#include "storage/repo-storage.hpp"
-
-#include <boost/filesystem.hpp>
-#include <boost/test/unit_test.hpp>
+#include <ndn-cxx/util/sha256.hpp>
+#include <ndn-cxx/security/signature-sha256-with-rsa.hpp>
 
 namespace repo {
-namespace tests {
 
-class RepoStorageFixture
+const ndn::ConstBufferPtr
+Storage::computeKeyLocatorHash(const Data& data)
 {
-public:
-  RepoStorageFixture()
-    : store(make_shared<SqliteStorage>("unittestdb"))
-    , handle(new RepoStorage(*store))
-  {
+  const ndn::Signature& signature = data.getSignature();
+  if (signature.hasKeyLocator()) {
+    const Block& block = signature.getKeyLocator().wireEncode();
+    return ndn::util::Sha256::computeDigest(block.wire(), block.size());
   }
-
-  ~RepoStorageFixture()
-  {
-    boost::filesystem::remove_all(boost::filesystem::path("unittestdb"));
+  else {
+    BOOST_THROW_EXCEPTION(Error("Data has no KeyLocator!"));
   }
+  return NULL;
+}
 
-
-public:
-  shared_ptr<Storage> store;
-  shared_ptr<RepoStorage> handle;
-};
-
-} // namespace tests
-} // namespace repo
-
-#endif // REPO_TESTS_REPO_STORAGE_FIXTURE_HPP
+}
