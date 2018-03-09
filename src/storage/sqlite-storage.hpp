@@ -32,6 +32,7 @@
 namespace repo {
 
 using std::queue;
+using std::string;
 
 class SqliteStorage : public Storage
 {
@@ -40,14 +41,14 @@ public:
   {
   public:
     explicit
-    Error(const std::string& what)
+    Error(const string& what)
       : std::runtime_error(what)
     {
     }
   };
 
   explicit
-  SqliteStorage(const std::string& dbPath);
+  SqliteStorage(const string& dbPath);
 
   virtual
   ~SqliteStorage();
@@ -87,7 +88,7 @@ public:
   has(const Name& name);
 
   virtual std::pair<int64_t, Name>
-  find(const Name& name, const std::string sql);
+  find(const string name, const string sql);
 
   virtual std::pair<int64_t, Name>
   find(const Name& name);
@@ -107,7 +108,7 @@ private:
 
 private:
   sqlite3* m_db;
-  std::string m_dbPath;
+  string m_dbPath;
   int64_t m_size;
 };
 

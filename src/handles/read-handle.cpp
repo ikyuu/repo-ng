@@ -56,7 +56,11 @@ ReadHandle::onInterest(const Name& prefix, const Interest& interest)
   NDN_LOG_DEBUG("Received Interest " << interest.getName());
   shared_ptr<ndn::Data> data = getStorageHandle().readData(interest);
   if (data != nullptr) {
+      NDN_LOG_DEBUG("Put Data: " << *data);
       getFace().put(*data);
+  }
+  else {
+    NDN_LOG_DEBUG("No data for " << interest.getName());
   }
 }
 

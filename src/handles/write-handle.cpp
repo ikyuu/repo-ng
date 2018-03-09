@@ -57,7 +57,6 @@ WriteHandle::onInterest(const Name& prefix, const Interest& interest)
 void
 WriteHandle::onValidated(const Interest& interest, const Name& prefix)
 {
-  //m_validResult = 1;
   RepoCommandParameter parameter;
   try {
     extractParameter(interest, prefix, parameter);

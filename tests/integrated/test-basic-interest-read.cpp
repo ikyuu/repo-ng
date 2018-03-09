@@ -99,6 +99,7 @@ public:
   onReadTimeout(const ndn::Interest& interest)
   {
     NDN_LOG_DEBUG("Timed out " << interest.getName());
+    std::cout << interest.getName() << std::endl;
     BOOST_ERROR("Insert or read not successfull");
   }
 

@@ -30,8 +30,6 @@ namespace repo {
 
 NDN_LOG_INIT(repo.SqliteStorage);
 
-using std::string;
-
 SqliteStorage::SqliteStorage(const string& dbPath)
   : m_size(0)
 {
@@ -72,7 +70,7 @@ SqliteStorage::initializeRepo()
   if (rc == SQLITE_OK) {
     sqlite3_exec(m_db, "CREATE TABLE NDN_REPO ("
                       "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
-                      "name BLOB, "
+                      "name TEXT, "
                       "data BLOB, "
                       "keylocatorHash BLOB);\n "
                  , 0, 0, &errMsg);
@@ -114,10 +112,12 @@ SqliteStorage::insert(const Data& data)
   }
   //Insert
   auto result = sqlite3_bind_null(insertStmt, 1);
+  string strName(data.getFullName().toUri());
+  NDN_LOG_DEBUG(strName.c_str());
   if (result == SQLITE_OK) {
-    result = sqlite3_bind_blob(insertStmt, 2,
-                               data.getFullName().wireEncode().wire(),
-                               data.getFullName().wireEncode().size(), SQLITE_STATIC);
+    result = sqlite3_bind_text(insertStmt, 2,
+                               strName.c_str(),
+                               -1, SQLITE_STATIC);
   }
   if (result == SQLITE_OK) {
     result = sqlite3_bind_blob(insertStmt, 3,
@@ -197,9 +197,16 @@ SqliteStorage::readData(int64_t id)
       rc = sqlite3_step(queryStmt);
       if (rc == SQLITE_ROW) {
         auto data = make_shared<Data>();
-        data->wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 2)),
-                               sqlite3_column_bytes(queryStmt, 2)));
+        try {
+          data->wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 2)),
+                                 sqlite3_column_bytes(queryStmt, 2)));
+        }
+        catch (const ndn::Block::Error& error) {
+          NDN_LOG_DEBUG(error.what());
+          return nullptr;
+        }
         sqlite3_finalize(queryStmt);
+        NDN_LOG_DEBUG("Data from db: " << *data);
         return data;
       }
       else if (rc == SQLITE_DONE) {
@@ -235,7 +242,7 @@ SqliteStorage::read(const Name& name)
   if (res.first == 0)
     return readMore(name);
   else {
-    NDN_LOG_DEBUG("Found in database " << name << " " << res.first << res.second);
+    NDN_LOG_DEBUG("Found in database " << name << " " << res.first << " " << res.second);
     return readData(res.first);
   }
 }
@@ -249,14 +256,12 @@ SqliteStorage::read(int64_t id)
 shared_ptr<Data>
 SqliteStorage::readMore(const Name& name)
 {
-  Name qName = name;
-  qName.append("/");
-  std::pair<int64_t, Name> res = findBigger(qName);
+  std::pair<int64_t, Name> res = findBigger(name);
 
   if (res.first == 0)
     return nullptr;
   else {
-    NDN_LOG_DEBUG("Found in database(more) " << name << " " << res.first << res.second);
+    NDN_LOG_DEBUG("Found in database(more) " << name << " " << res.first << " " << res.second);
     return readData(res.first);
   }
 }
@@ -269,20 +274,18 @@ SqliteStorage::has(const Name& name)
 }
 
 std::pair<int64_t, Name>
-SqliteStorage::find(const Name& name, const std::string sql)
+SqliteStorage::find(string name, const string sql)
 {
   sqlite3_stmt* queryStmt = 0;
   int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &queryStmt, 0);
   if (rc == SQLITE_OK) {
-    if (sqlite3_bind_blob(queryStmt, 1, 
-                          name.wireEncode().wire(), name.wireEncode().size(), SQLITE_STATIC)
+    if (sqlite3_bind_text(queryStmt, 1, 
+                          name.c_str(), -1, SQLITE_STATIC)
         == SQLITE_OK) {
       rc = sqlite3_step(queryStmt);
       if (rc == SQLITE_ROW) {
-        Name dataName;
-        dataName.wireDecode(Block(reinterpret_cast<const uint8_t*>(sqlite3_column_blob(queryStmt, 1)),
-                               sqlite3_column_bytes(queryStmt, 1)));
-        return std::make_pair(sqlite3_column_int64(queryStmt, 0), dataName);
+        string dataName((const char *)sqlite3_column_text(queryStmt, 1));
+        return std::make_pair(sqlite3_column_int64(queryStmt, 0), Name(dataName));
       }
       else if (rc == SQLITE_DONE) {
         return std::make_pair(0, Name());
@@ -311,13 +314,14 @@ SqliteStorage::find(const Name& name, const std::string sql)
 std::pair<int64_t, Name>
 SqliteStorage::find(const Name& name)
 {
-  return find(name, string("SELECT * FROM NDN_REPO WHERE name = ? ;"));
+  return find(name.toUri(), string("SELECT * FROM NDN_REPO WHERE name = ? ;"));
 }
 
 std::pair<int64_t, Name>
 SqliteStorage::findBigger(const Name& name)
 {
-  return find(name, string("SELECT * FROM NDN_REPO WHERE name > ? ;"));
+  string likeName = name.toUri() + "/%";
+  return find(likeName, string("SELECT * FROM NDN_REPO WHERE name like ? ;"));
 }
 
 int64_t

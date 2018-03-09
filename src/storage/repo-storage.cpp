@@ -60,10 +60,8 @@ RepoStorage::deleteData(const Name& name)
 {
   bool hasError = false;
   std::pair<int64_t, Name> idName = m_storage.find(name);
-  Name biggerName = name;
-  biggerName.append("/");
   if (idName.first == 0) {
-    idName = m_storage.findBigger(biggerName);
+    idName = m_storage.findBigger(name);
   }
   int64_t count = 0;
   while (idName.first != 0) {
@@ -75,7 +73,7 @@ RepoStorage::deleteData(const Name& name)
     else {
       hasError = true;
     }
-    idName = m_storage.findBigger(biggerName);
+    idName = m_storage.findBigger(name);
   }
   if (hasError)
     return -1;
