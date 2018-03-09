@@ -61,6 +61,7 @@ RepoStorage::insertData(const Data& data)
   else
   {
     int64_t id = m_storage.insert(data);
+    NDN_LOG_DEBUG("Insert ID: " << id);
     if (id == -1)
       return false;
     bool didInsert = m_index.insert(data, id);

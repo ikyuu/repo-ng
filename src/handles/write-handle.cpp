@@ -104,8 +104,6 @@ WriteHandle::onDataValidated(const Interest& interest, const Data& data, Process
 
   if (response.getInsertNum() == 0) {
     getStorageHandle().insertData(data);
-   // getStorageHandle().insertEntry(data);
-   // getStoreIndex().insert(data);
     response.setInsertNum(1);
   }
 

@@ -55,6 +55,7 @@ public:
 
 protected:
   ndn::KeyChain m_keyChain;
+  const std::string m_identityName;
 
 private:
   std::vector<std::string> m_certFiles;

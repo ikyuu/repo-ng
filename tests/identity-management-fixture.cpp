@@ -29,9 +29,11 @@ namespace repo {
 namespace tests {
 
 IdentityManagementFixture::IdentityManagementFixture()
-  : m_keyChain("pib-memory:", "tpm-memory:")
+  // : m_keyChain("pib-memory:", "tpm-memory:")
+  : m_keyChain()
+  , m_identityName("/ndn/test/repo")
 {
-  m_keyChain.createIdentity("/DEFAULT");
+  m_keyChain.createIdentity(m_identityName);
 }
 
 IdentityManagementFixture::~IdentityManagementFixture()

@@ -259,6 +259,8 @@ Fixture<T>::scheduleInsertEvent()
     Interest insertInterest(insertCommandName);
     keyChain.sign(insertInterest);
 
+    NDN_LOG_DEBUG("Insert Interest: " << insertInterest);
+
     //schedule a job to express insertInterest every 50ms
     scheduler.scheduleEvent(milliseconds(timeCount * 50 + 1000),
                             bind(&Fixture<T>::sendInsertInterest, this, insertInterest));
@@ -266,7 +268,7 @@ Fixture<T>::scheduleInsertEvent()
 
     EventId delayEventId = scheduler.scheduleEvent(milliseconds(5000 + timeCount * 50),
                                                    bind(&Fixture<T>::delayedInterest, this));
-    insertEvents[insertInterest.getName()] = delayEventId;
+    insertEvents[insertParameter.getName()] = delayEventId;
 
     //The delayEvent will be canceled in onInsertInterest
     insertFace.setInterestFilter(insertParameter.getName(),
