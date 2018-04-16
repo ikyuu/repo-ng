@@ -91,6 +91,7 @@ private:
   ValidatorConfig m_validator;
   ReadHandle m_readHandle;
   WriteHandle m_writeHandle;
+  SyncHandle m_syncHandle;
   DeleteHandle m_deleteHandle;
   TcpBulkInsertHandle m_tcpBulkInsertHandle;
 };

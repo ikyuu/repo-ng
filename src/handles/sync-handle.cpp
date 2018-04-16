@@ -17,44 +17,44 @@
  * repo-ng, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "watch-handle.hpp"
+#include "sync-handle.hpp"
+#include "socket.hpp"
 
 namespace repo {
 
 static const milliseconds PROCESS_DELETE_TIME(10000);
 static const milliseconds DEFAULT_INTEREST_LIFETIME(4000);
 
-WatchHandle::WatchHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
+SyncHandle::SyncHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
                          Scheduler& scheduler, Validator& validator)
   : BaseHandle(face, storageHandle, keyChain, scheduler)
   , m_validator(validator)
   , m_interestNum(0)
   , m_maxInterestNum(0)
   , m_interestLifetime(DEFAULT_INTEREST_LIFETIME)
-  , m_watchTimeout(0)
+  , m_syncTimeout(0)
   , m_startTime(steady_clock::now())
   , m_size(0)
 {
 }
 
 void
-WatchHandle::deleteProcess(const Name& name)
+SyncHandle::deleteProcess(const Name& name)
 {
   m_processes.erase(name);
 }
 
 // Interest.
 void
-WatchHandle::onInterest(const Name& prefix, const Interest& interest)
+SyncHandle::onInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
-                       bind(&WatchHandle::onValidated, this, _1, prefix),
-                       bind(&WatchHandle::onValidated, this, _1, prefix));
-                       // bind(&WatchHandle::onValidationFailed, this, _1, _2));
+                       bind(&SyncHandle::onValidated, this, _1, prefix),
+                       bind(&SyncHandle::onValidationFailed, this, _1, _2));
 }
 
 void
-WatchHandle::onValidated(const Interest& interest, const Name& prefix)
+SyncHandle::onValidated(const Interest& interest, const Name& prefix)
 {
   RepoCommandParameter parameter;
   try {
@@ -65,38 +65,38 @@ WatchHandle::onValidated(const Interest& interest, const Name& prefix)
     return;
   }
 
-  processWatchCommand(interest, parameter);
+  processSyncCommand(interest, parameter);
 }
 
-void WatchHandle::watchStop(const Name& name)
+void
+SyncHandle::syncStop(const Name& name)
 {
   m_processes[name].second = false;
   m_maxInterestNum = 0;
   m_interestNum = 0;
   m_startTime = steady_clock::now();
-  m_watchTimeout = milliseconds(0);
+  m_syncTimeout = milliseconds(0);
   m_interestLifetime = DEFAULT_INTEREST_LIFETIME;
   m_size = 0;
 }
 
 void
-WatchHandle::onValidationFailed(const Interest& interest, const ValidationError& error)
+SyncHandle::onValidationFailed(const Interest& interest, const ValidationError& error)
 {
   std::cerr << error << std::endl;
   negativeReply(interest, 401);
 }
 
 void
-WatchHandle::onData(const Interest& interest, const ndn::Data& data, const Name& name)
+SyncHandle::onData(const Interest& interest, const ndn::Data& data, const Name& name)
 {
   m_validator.validate(data,
-                       bind(&WatchHandle::onDataValidated, this, interest, _1, name),
-                       bind(&WatchHandle::onDataValidated, this, interest, _1, name));
-                       // bind(&WatchHandle::onDataValidationFailed, this, interest, _1, _2, name));
+                       bind(&SyncHandle::onDataValidated, this, interest, _1, name),
+                       bind(&SyncHandle::onDataValidationFailed, this, interest, _1, _2, name));
 }
 
 void
-WatchHandle::onDataValidated(const Interest& interest, const Data& data, const Name& name)
+SyncHandle::onDataValidated(const Interest& interest, const Data& data, const Name& name)
 {
   if (!m_processes[name].second) {
     return;
@@ -111,9 +111,9 @@ WatchHandle::onDataValidated(const Interest& interest, const Data& data, const N
 
     ++m_interestNum;
     getFace().expressInterest(fetchInterest,
-                              bind(&WatchHandle::onData, this, _1, _2, name),
-                              bind(&WatchHandle::onTimeout, this, _1, name), // Nack
-                              bind(&WatchHandle::onTimeout, this, _1, name));
+                              bind(&SyncHandle::onData, this, _1, _2, name),
+                              bind(&SyncHandle::onTimeout, this, _1, name), // Nack
+                              bind(&SyncHandle::onTimeout, this, _1, name));
   }
   else {
     BOOST_THROW_EXCEPTION(Error("Insert into Repo Failed"));
@@ -122,7 +122,7 @@ WatchHandle::onDataValidated(const Interest& interest, const Data& data, const N
 }
 
 void
-WatchHandle::onDataValidationFailed(const Interest& interest, const Data& data,
+SyncHandle::onDataValidationFailed(const Interest& interest, const Data& data,
                                     const ValidationError& error, const Name& name)
 {
   std::cerr << error << std::endl;
@@ -137,13 +137,13 @@ WatchHandle::onDataValidationFailed(const Interest& interest, const Data& data,
 
   ++m_interestNum;
   getFace().expressInterest(fetchInterest,
-                            bind(&WatchHandle::onData, this, _1, _2, name),
-                            bind(&WatchHandle::onTimeout, this, _1, name), // Nack
-                            bind(&WatchHandle::onTimeout, this, _1, name));
+                            bind(&SyncHandle::onData, this, _1, _2, name),
+                            bind(&SyncHandle::onTimeout, this, _1, name), // Nack
+                            bind(&SyncHandle::onTimeout, this, _1, name));
 }
 
 void
-WatchHandle::onTimeout(const ndn::Interest& interest, const Name& name)
+SyncHandle::onTimeout(const ndn::Interest& interest, const Name& name)
 {
   std::cerr << "Timeout" << std::endl;
   if (!m_processes[name].second) {
@@ -156,34 +156,34 @@ WatchHandle::onTimeout(const ndn::Interest& interest, const Name& name)
 
   ++m_interestNum;
   getFace().expressInterest(fetchInterest,
-                            bind(&WatchHandle::onData, this, _1, _2, name),
-                            bind(&WatchHandle::onTimeout, this, _1, name), // Nack
-                            bind(&WatchHandle::onTimeout, this, _1, name));
+                            bind(&SyncHandle::onData, this, _1, _2, name),
+                            bind(&SyncHandle::onTimeout, this, _1, name), // Nack
+                            bind(&SyncHandle::onTimeout, this, _1, name));
 
 }
 
-void
-WatchHandle::listen(const Name& prefix)
-{
-  getFace().setInterestFilter(Name(prefix).append("watch").append("start"),
-                              bind(&WatchHandle::onInterest, this, _1, _2));
-  getFace().setInterestFilter(Name(prefix).append("watch").append("check"),
-                              bind(&WatchHandle::onCheckInterest, this, _1, _2));
-  getFace().setInterestFilter(Name(prefix).append("watch").append("stop"),
-                              bind(&WatchHandle::onStopInterest, this, _1, _2));
-}
+// void
+// SyncHandle::listen(const Name& prefix)
+// {
+//   getFace().setInterestFilter(Name(prefix).append("sync").append("start"),
+//                               bind(&SyncHandle::onInterest, this, _1, _2));
+//   getFace().setInterestFilter(Name(prefix).append("sync").append("check"),
+//                               bind(&SyncHandle::onCheckInterest, this, _1, _2));
+//   getFace().setInterestFilter(Name(prefix).append("sync").append("stop"),
+//                               bind(&SyncHandle::onStopInterest, this, _1, _2));
+// }
+
 
 void
-WatchHandle::onStopInterest(const Name& prefix, const Interest& interest)
+SyncHandle::onStopInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
-                       bind(&WatchHandle::onStopValidated, this, _1, prefix),
-                       bind(&WatchHandle::onStopValidated, this, _1, prefix));
-                       // bind(&WatchHandle::onStopValidationFailed, this, _1, _2));
+                       bind(&SyncHandle::onStopValidated, this, _1, prefix),
+                       bind(&SyncHandle::onStopValidationFailed, this, _1, _2));
 }
 
 void
-WatchHandle::onStopValidated(const Interest& interest, const Name& prefix)
+SyncHandle::onStopValidated(const Interest& interest, const Name& prefix)
 {
   RepoCommandParameter parameter;
   try {
@@ -194,28 +194,27 @@ WatchHandle::onStopValidated(const Interest& interest, const Name& prefix)
     return;
   }
 
-  watchStop(parameter.getName());
+  syncStop(parameter.getName());
   negativeReply(interest, 101);
 }
 
 void
-WatchHandle::onStopValidationFailed(const Interest& interest, const ValidationError& error)
+SyncHandle::onStopValidationFailed(const Interest& interest, const ValidationError& error)
 {
   std::cerr << error << std::endl;
   negativeReply(interest, 401);
 }
 
 void
-WatchHandle::onCheckInterest(const Name& prefix, const Interest& interest)
+SyncHandle::onCheckInterest(const Name& prefix, const Interest& interest)
 {
   m_validator.validate(interest,
-                       bind(&WatchHandle::onCheckValidated, this, _1, prefix),
-                       bind(&WatchHandle::onCheckValidated, this, _1, prefix));
-                       // bind(&WatchHandle::onCheckValidationFailed, this, _1, _2));
+                       bind(&SyncHandle::onCheckValidated, this, _1, prefix),
+                       bind(&SyncHandle::onCheckValidationFailed, this, _1, _2));
 }
 
 void
-WatchHandle::onCheckValidated(const Interest& interest, const Name& prefix)
+SyncHandle::onCheckValidated(const Interest& interest, const Name& prefix)
 {
   RepoCommandParameter parameter;
   try {
@@ -248,29 +247,29 @@ WatchHandle::onCheckValidated(const Interest& interest, const Name& prefix)
 }
 
 void
-WatchHandle::onCheckValidationFailed(const Interest& interest, const ValidationError& error)
+SyncHandle::onCheckValidationFailed(const Interest& interest, const ValidationError& error)
 {
   std::cerr << error << std::endl;
   negativeReply(interest, 401);
 }
 
 void
-WatchHandle::deferredDeleteProcess(const Name& name)
+SyncHandle::deferredDeleteProcess(const Name& name)
 {
   getScheduler().scheduleEvent(PROCESS_DELETE_TIME,
-                               bind(&WatchHandle::deleteProcess, this, name));
+                               bind(&SyncHandle::deleteProcess, this, name));
 }
 
 void
-WatchHandle::processWatchCommand(const Interest& interest,
+SyncHandle::processSyncCommand(const Interest& interest,
                                  RepoCommandParameter& parameter)
 {
-  // if there is no watchTimeout specified, m_watchTimeout will be set as 0 and this handle will run forever
-  if (parameter.hasWatchTimeout()) {
-    m_watchTimeout = parameter.getWatchTimeout();
+  // if there is no syncTimeout specified, m_syncTimeout will be set as 0 and this handle will run forever
+  if (parameter.hasSyncTimeout()) {
+    m_syncTimeout = parameter.getSyncTimeout();
   }
   else {
-    m_watchTimeout = milliseconds(0);
+    m_syncTimeout = milliseconds(0);
   }
 
   // if there is no maxInterestNum specified, m_maxInterestNum will be 0, which means infinity
@@ -294,14 +293,14 @@ WatchHandle::processWatchCommand(const Interest& interest,
   m_startTime = steady_clock::now();
   m_interestNum++;
   getFace().expressInterest(fetchInterest,
-                            bind(&WatchHandle::onData, this, _1, _2, parameter.getName()),
-                            bind(&WatchHandle::onTimeout, this, _1, parameter.getName()), // Nack
-                            bind(&WatchHandle::onTimeout, this, _1, parameter.getName()));
+                            bind(&SyncHandle::onData, this, _1, _2, parameter.getName()),
+                            bind(&SyncHandle::onTimeout, this, _1, parameter.getName()), // Nack
+                            bind(&SyncHandle::onTimeout, this, _1, parameter.getName()));
 }
 
 
 void
-WatchHandle::negativeReply(const Interest& interest, int statusCode)
+SyncHandle::negativeReply(const Interest& interest, int statusCode)
 {
   RepoCommandResponse response;
   response.setStatusCode(statusCode);
@@ -309,14 +308,14 @@ WatchHandle::negativeReply(const Interest& interest, int statusCode)
 }
 
 bool
-WatchHandle::onRunning(const Name& name)
+SyncHandle::onRunning(const Name& name)
 {
-  bool isTimeout = (m_watchTimeout != milliseconds::zero() &&
-                    steady_clock::now() - m_startTime > m_watchTimeout);
+  bool isTimeout = (m_syncTimeout != milliseconds::zero() &&
+                    steady_clock::now() - m_startTime > m_syncTimeout);
   bool isMaxInterest = m_interestNum >= m_maxInterestNum && m_maxInterestNum != 0;
   if (isTimeout || isMaxInterest) {
     deferredDeleteProcess(name);
-    watchStop(name);
+    syncStop(name);
     return false;
   }
   return true;

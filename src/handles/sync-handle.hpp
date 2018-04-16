@@ -17,10 +17,11 @@
  * repo-ng, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef REPO_HANDLES_WATCH_HANDLE_HPP
-#define REPO_HANDLES_WATCH_HANDLE_HPP
+#ifndef REPO_HANDLES_SYNC_HANDLE_HPP
+#define REPO_HANDLES_SYNC_HANDLE_HPP
 
 #include "base-handle.hpp"
+#include "socket.hpp"
 
 #include <queue>
 
@@ -31,13 +32,13 @@ using std::pair;
 using std::queue;
 using namespace ndn::time;
 /**
- * @brief WatchHandle provides a different way for repo to insert data.
+ * @brief SyncHandle provides a different way for repo to insert data.
  *
  * Repo keeps sending interest to request the data with same prefix. Repo will stop
- * watching the prefix until a command interest tell it to stop, the total
+ * syncing the prefix until a command interest tell it to stop, the total
  * amount of sent interests reaches a specific number or time out.
  */
-class WatchHandle : public BaseHandle
+class SyncHandle : public BaseHandle
 {
 
 public:
@@ -53,15 +54,15 @@ public:
 
 
 public:
-  WatchHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
+  SyncHandle(Face& face, RepoStorage& storageHandle, KeyChain& keyChain,
               Scheduler& scheduler, Validator& validator);
 
   virtual void
   listen(const Name& prefix);
 
-private: // watch-insert command
+private: // sync-handle command
   /**
-   * @brief handle watch commands
+   * @brief handle sync commands
    */
   void
   onInterest(const Name& prefix, const Interest& interest);
@@ -97,14 +98,14 @@ private: // data fetching
 
 
   void
-  processWatchCommand(const Interest& interest, RepoCommandParameter& parameter);
+  processSyncCommand(const Interest& interest, RepoCommandParameter& parameter);
 
   void
-  watchStop(const Name& name);
+  syncStop(const Name& name);
 
-private: // watch state check command
+private: // sync state check command
   /**
-   * @brief handle watch check command
+   * @brief handle sync check command
    */
   void
   onCheckInterest(const Name& prefix, const Interest& interest);
@@ -115,9 +116,9 @@ private: // watch state check command
   void
   onCheckValidationFailed(const Interest& interest, const ValidationError& error);
 
-private: // watch stop command
+private: // sync stop command
   /**
-   * @brief handle watch stop command
+   * @brief handle sync stop command
    */
   void
   onStopInterest(const Name& prefix, const Interest& interest);
@@ -148,9 +149,8 @@ private:
   int64_t m_interestNum;
   int64_t m_maxInterestNum;
   milliseconds m_interestLifetime;
-  milliseconds m_watchTimeout;
+  milliseconds m_syncTimeout;
   ndn::time::steady_clock::TimePoint m_startTime;
-  int64_t m_size;
 };
 
 } // namespace repo
