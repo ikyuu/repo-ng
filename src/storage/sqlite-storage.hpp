@@ -100,7 +100,6 @@ private:
 private:
   sqlite3* m_db;
   string m_dbPath;
-  int64_t m_size;
 };
 
 

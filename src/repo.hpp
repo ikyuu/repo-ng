@@ -27,6 +27,7 @@
 #include "handles/read-handle.hpp"
 #include "handles/write-handle.hpp"
 #include "handles/delete-handle.hpp"
+#include "handles/sync-handle.hpp"
 #include "handles/tcp-bulk-insert-handle.hpp"
 
 #include "common.hpp"

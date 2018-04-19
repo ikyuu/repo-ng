@@ -74,7 +74,6 @@ SqliteStorage::initializeRepo()
                       "keylocatorHash BLOB);\n "
                  , 0, 0, &errMsg);
     // Ignore errors (when database already exists, errors are expected)
-    sqlite3_exec(m_db, "CREATE UNIQUE INDEX index_name ON NDN_REPO (name);");
   }
   else {
     NDN_LOG_DEBUG("Database file open failure rc:" << rc);
@@ -243,11 +242,11 @@ SqliteStorage::read(const Name& name)
   }
 }
 
-// shared_ptr<Data>
-// SqliteStorage::read(int64_t id)
-// {
-//   return readData(id);
-// }
+shared_ptr<Data>
+SqliteStorage::read(int64_t id)
+{
+  return readData(id);
+}
 
 bool
 SqliteStorage::has(const Name& name)

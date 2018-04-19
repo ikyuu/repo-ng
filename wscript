@@ -32,6 +32,9 @@ def configure(conf):
 
     conf.check_sqlite3(mandatory=True)
 
+    conf.check_cfg (package='ChronoSync', args=['ChronoSync >= 0.1', '--cflags', '--libs'],
+                    uselib_store='SYNC', mandatory=True)
+
     conf.env['WITH_EXAMPLES'] = conf.options.with_examples
     conf.env['WITH_TESTS'] = conf.options.with_tests
     conf.env['WITH_TOOLS'] = conf.options.with_tools
@@ -66,7 +69,7 @@ def build(bld):
         features=["cxx"],
         source=bld.path.ant_glob(['src/**/*.cpp'],
                                  excl=['src/main.cpp']),
-        use='NDN_CXX BOOST SQLITE3',
+        use='NDN_CXX BOOST SQLITE3 SYNC',
         includes="src",
         export_includes="src",
         )

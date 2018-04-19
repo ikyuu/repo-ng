@@ -19,8 +19,11 @@
 
 #include "sync-handle.hpp"
 #include "socket.hpp"
+#include <ndn-cxx/util/logger.hpp>
 
 namespace repo {
+
+NDN_LOG_INIT(repo.SyncHandle);
 
 static const milliseconds PROCESS_DELETE_TIME(10000);
 static const milliseconds DEFAULT_INTEREST_LIFETIME(4000);
@@ -78,6 +81,7 @@ SyncHandle::syncStop(const Name& name)
   m_syncTimeout = milliseconds(0);
   m_interestLifetime = DEFAULT_INTEREST_LIFETIME;
   m_size = 0;
+  m_sock.reset();
 }
 
 void
@@ -98,14 +102,13 @@ SyncHandle::onData(const Interest& interest, const ndn::Data& data, const Name& 
 void
 SyncHandle::onDataValidated(const Interest& interest, const Data& data, const Name& name)
 {
-  if (!m_processes[name].second) {
+  if (!m_processes[name].second){
     return;
   }
-  if (getStorageHandle().insertData(data)) {
+  if (getStorageHandle().insertData(data)){
     m_size++;
     if (!onRunning(name))
       return;
-
     Interest fetchInterest(interest.getName());
     fetchInterest.setInterestLifetime(m_interestLifetime);
 
@@ -122,8 +125,7 @@ SyncHandle::onDataValidated(const Interest& interest, const Data& data, const Na
 }
 
 void
-SyncHandle::onDataValidationFailed(const Interest& interest, const Data& data,
-                                    const ValidationError& error, const Name& name)
+SyncHandle::onDataValidationFailed(const Interest& interest, const Data& data, const ValidationError& error, const Name& name)
 {
   std::cerr << error << std::endl;
   if (!m_processes[name].second) {
@@ -151,6 +153,7 @@ SyncHandle::onTimeout(const ndn::Interest& interest, const Name& name)
   }
   if (!onRunning(name))
     return;
+
   Interest fetchInterest(interest.getName());
   fetchInterest.setInterestLifetime(m_interestLifetime);
 
@@ -162,16 +165,16 @@ SyncHandle::onTimeout(const ndn::Interest& interest, const Name& name)
 
 }
 
-// void
-// SyncHandle::listen(const Name& prefix)
-// {
-//   getFace().setInterestFilter(Name(prefix).append("sync").append("start"),
-//                               bind(&SyncHandle::onInterest, this, _1, _2));
-//   getFace().setInterestFilter(Name(prefix).append("sync").append("check"),
-//                               bind(&SyncHandle::onCheckInterest, this, _1, _2));
-//   getFace().setInterestFilter(Name(prefix).append("sync").append("stop"),
-//                               bind(&SyncHandle::onStopInterest, this, _1, _2));
-// }
+void
+SyncHandle::listen(const Name& prefix)
+{
+  getFace().setInterestFilter(Name(prefix).append("sync").append("start"),
+                              bind(&SyncHandle::onInterest, this, _1, _2));
+  getFace().setInterestFilter(Name(prefix).append("sync").append("check"),
+                              bind(&SyncHandle::onCheckInterest, this, _1, _2));
+  getFace().setInterestFilter(Name(prefix).append("sync").append("stop"),
+                              bind(&SyncHandle::onStopInterest, this, _1, _2));
+}
 
 
 void
@@ -264,6 +267,7 @@ void
 SyncHandle::processSyncCommand(const Interest& interest,
                                  RepoCommandParameter& parameter)
 {
+  // Sync start
   // if there is no syncTimeout specified, m_syncTimeout will be set as 0 and this handle will run forever
   if (parameter.hasSyncTimeout()) {
     m_syncTimeout = parameter.getSyncTimeout();
@@ -288,14 +292,48 @@ SyncHandle::processSyncCommand(const Interest& interest,
 
   m_processes[parameter.getName()] =
                 std::make_pair(RepoCommandResponse().setStatusCode(300), true);
-  Interest fetchInterest(parameter.getName());
-  fetchInterest.setInterestLifetime(m_interestLifetime);
-  m_startTime = steady_clock::now();
-  m_interestNum++;
-  getFace().expressInterest(fetchInterest,
-                            bind(&SyncHandle::onData, this, _1, _2, parameter.getName()),
-                            bind(&SyncHandle::onTimeout, this, _1, parameter.getName()), // Nack
-                            bind(&SyncHandle::onTimeout, this, _1, parameter.getName()));
+
+  // create a new SyncSocket
+  m_sock = make_shared<chronosync::Socket>(parameter.getName(),
+                                           Name(),
+                                           ref(getFace()),
+                                           bind(&SyncHandle::processSyncUpdate, this, _1),
+                                           Name()//SigningId
+                                           );
+
+}
+
+void
+SyncHandle::processSyncUpdate(const std::vector<chronosync::MissingDataInfo>& updates)
+{
+  NDN_LOG_DEBUG("<<< processing Tree Update");
+
+  if (updates.empty()) {
+    return;
+  }
+
+  std::vector<chronosync::NodeInfo> nodeInfos;
+
+  for (size_t i = 0; i < updates.size(); i++) {
+    // fetch missing data
+    for (chronosync::SeqNo seq = updates[i].low; seq <= updates[i].high; ++seq) {
+      Name interestName;
+      interestName.append(updates[i].session).appendNumber(seq);
+
+      Interest interest(interestName);
+      interest.setInterestLifetime(m_interestLifetime);
+      interest.setMustBeFresh(true);
+
+      m_startTime = steady_clock::now();
+      m_interestNum++;
+      getFace().expressInterest(interest,
+                            bind(&SyncHandle::onData, this, _1, _2, interestName),
+                            bind(&SyncHandle::onTimeout, this, _1, interestName), // Nack
+                            bind(&SyncHandle::onTimeout, this, _1, interestName));
+
+      NDN_LOG_DEBUG("<<< Fetching " << updates[i].session << "/" << seq);
+    }
+  }
 }
 
 

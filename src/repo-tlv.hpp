@@ -37,7 +37,7 @@ enum {
   InsertNum            = 209,
   DeleteNum            = 210,
   MaxInterestNum       = 211,
-  WatchTimeout         = 212
+  SyncTimeout         = 212
 };
 
 } // tlv

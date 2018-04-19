@@ -169,7 +169,7 @@ NdnRepoWatch::startWatchCommand()
       parameters.setMaxInterestNum(maxInterestNum);
     }
     if (hasTimeout) {
-      parameters.setWatchTimeout(watchTimeout);
+      parameters.setSyncTimeout(watchTimeout);
     }
     ndn::Interest commandInterest = generateCommandInterest(repoPrefix, "start", parameters);
     m_face.expressInterest(commandInterest,

@@ -71,6 +71,9 @@ private: // sync-handle command
   onValidated(const Interest& interest, const Name& prefix);
 
   void
+  syncStop(const Name& name);
+
+  void
   onValidationFailed(const Interest& interest, const ValidationError& error);
 
 private: // data fetching
@@ -100,8 +103,9 @@ private: // data fetching
   void
   processSyncCommand(const Interest& interest, RepoCommandParameter& parameter);
 
+
   void
-  syncStop(const Name& name);
+  processSyncUpdate(const std::vector<chronosync::MissingDataInfo>& updates);
 
 private: // sync state check command
   /**
@@ -144,6 +148,7 @@ private:
 
 private:
   Validator& m_validator;
+  shared_ptr<chronosync::Socket> m_sock; // SyncSocket
 
   map<Name, std::pair<RepoCommandResponse, bool> > m_processes;
   int64_t m_interestNum;
@@ -151,6 +156,7 @@ private:
   milliseconds m_interestLifetime;
   milliseconds m_syncTimeout;
   ndn::time::steady_clock::TimePoint m_startTime;
+  int64_t m_size;
 };
 
 } // namespace repo
