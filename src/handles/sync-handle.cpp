@@ -94,32 +94,36 @@ SyncHandle::onValidationFailed(const Interest& interest, const ValidationError& 
 void
 SyncHandle::onData(const Interest& interest, const ndn::Data& data, const Name& name)
 {
+  NDN_LOG_DEBUG("<<< processing Tree Update");
   m_validator.validate(data,
                        bind(&SyncHandle::onDataValidated, this, interest, _1, name),
-                       bind(&SyncHandle::onDataValidationFailed, this, interest, _1, _2, name));
+                       bind(&SyncHandle::onDataValidated, this, interest, _1, name));
+                      //  bind(&SyncHandle::onDataValidationFailed, this, interest, _1, _2, name));
 }
 
 void
 SyncHandle::onDataValidated(const Interest& interest, const Data& data, const Name& name)
 {
-  if (!m_processes[name].second){
-    return;
-  }
-  if (getStorageHandle().insertData(data)){
-    m_size++;
-    if (!onRunning(name))
-      return;
-    Interest fetchInterest(interest.getName());
-    fetchInterest.setInterestLifetime(m_interestLifetime);
+  // if (!m_processes[name].second){
+  //   return;
+  // }
+  if (!getStorageHandle().insertData(data)){
+    // m_size++;
+    // if (!onRunning(name))
+    //   return;
+    // Interest fetchInterest(interest.getName());
+    // fetchInterest.setInterestLifetime(m_interestLifetime);
 
-    ++m_interestNum;
-    getFace().expressInterest(fetchInterest,
-                              bind(&SyncHandle::onData, this, _1, _2, name),
-                              bind(&SyncHandle::onTimeout, this, _1, name), // Nack
-                              bind(&SyncHandle::onTimeout, this, _1, name));
+    // ++m_interestNum;
+    // getFace().expressInterest(fetchInterest,
+    //                           bind(&SyncHandle::onData, this, _1, _2, name),
+    //                           bind(&SyncHandle::onTimeout, this, _1, name), // Nack
+    //                           bind(&SyncHandle::onTimeout, this, _1, name));
+    BOOST_THROW_EXCEPTION(Error("Insert into Repo Failed"));
   }
   else {
-    BOOST_THROW_EXCEPTION(Error("Insert into Repo Failed"));
+    // BOOST_THROW_EXCEPTION(Error("Insert into Repo Failed"));
+    NDN_LOG_DEBUG("Insert Success!!!!!");
   }
   m_processes[name].first.setInsertNum(m_size);
 }
@@ -148,9 +152,9 @@ void
 SyncHandle::onTimeout(const ndn::Interest& interest, const Name& name)
 {
   std::cerr << "Timeout" << std::endl;
-  if (!m_processes[name].second) {
-    return;
-  }
+  // if (!m_processes[name].second) {
+  //   return;
+  // }
   if (!onRunning(name))
     return;
 
@@ -297,8 +301,8 @@ SyncHandle::processSyncCommand(const Interest& interest,
   m_sock = make_shared<chronosync::Socket>(parameter.getName(),
                                            Name(),
                                            ref(getFace()),
-                                           bind(&SyncHandle::processSyncUpdate, this, _1),
-                                           Name()//SigningId
+                                           bind(&SyncHandle::processSyncUpdate, this, _1)
+                                           // Name() //SigningId
                                            );
 
 }
@@ -331,7 +335,8 @@ SyncHandle::processSyncUpdate(const std::vector<chronosync::MissingDataInfo>& up
                             bind(&SyncHandle::onTimeout, this, _1, interestName), // Nack
                             bind(&SyncHandle::onTimeout, this, _1, interestName));
 
-      NDN_LOG_DEBUG("<<< Fetching " << updates[i].session << "/" << seq);
+      // NDN_LOG_DEBUG("<<< Fetching " << updates[i].session << "/" << seq);
+      NDN_LOG_DEBUG("<<< Fetching " << interestName);
     }
   }
 }
@@ -354,6 +359,7 @@ SyncHandle::onRunning(const Name& name)
   if (isTimeout || isMaxInterest) {
     deferredDeleteProcess(name);
     syncStop(name);
+    NDN_LOG_DEBUG("sync running false");
     return false;
   }
   return true;
