@@ -108,17 +108,6 @@ SyncHandle::onDataValidated(const Interest& interest, const Data& data, const Na
   //   return;
   // }
   if (!getStorageHandle().insertData(data)){
-    // m_size++;
-    // if (!onRunning(name))
-    //   return;
-    // Interest fetchInterest(interest.getName());
-    // fetchInterest.setInterestLifetime(m_interestLifetime);
-
-    // ++m_interestNum;
-    // getFace().expressInterest(fetchInterest,
-    //                           bind(&SyncHandle::onData, this, _1, _2, name),
-    //                           bind(&SyncHandle::onTimeout, this, _1, name), // Nack
-    //                           bind(&SyncHandle::onTimeout, this, _1, name));
     BOOST_THROW_EXCEPTION(Error("Insert into Repo Failed"));
   }
   else {
@@ -299,7 +288,7 @@ SyncHandle::processSyncCommand(const Interest& interest,
 
   // create a new SyncSocket
   m_sock = make_shared<chronosync::Socket>(parameter.getName(),
-                                           Name(),
+                                           Name("/repo"),
                                            ref(getFace()),
                                            bind(&SyncHandle::processSyncUpdate, this, _1)
                                            // Name() //SigningId
