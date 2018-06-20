@@ -207,6 +207,9 @@ WriteHandle::segInit(ProcessId processId, const RepoCommandParameter& parameter)
     Name fetchName = name;
     fetchName.appendSegment(segment);
     Interest interest(fetchName);
+    if (parameter.hasForwardingHint()) {
+      interest.setForwardingHint(parameter.getForwardingHint());
+    }
     interest.setInterestLifetime(m_interestLifetime);
     getFace().expressInterest(interest,
                               bind(&WriteHandle::onSegmentData, this, _1, _2, processId),
@@ -452,6 +455,9 @@ WriteHandle::processSingleInsertCommand(const Interest& interest,
 
   Interest fetchInterest(parameter.getName());
   fetchInterest.setInterestLifetime(m_interestLifetime);
+  if (parameter.hasForwardingHint()) {
+    fetchInterest.setForwardingHint(parameter.getForwardingHint());
+  }
   getFace().expressInterest(fetchInterest,
                             bind(&WriteHandle::onData, this, _1, _2, processId),
                             bind(&WriteHandle::onTimeout, this, _1, processId), // Nack

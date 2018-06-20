@@ -226,6 +226,32 @@ public:
     return m_hasInterestLifetime;
   }
 
+  RepoCommandParameter&
+  setForwardingHint(const DelegationList &forwardingHint)
+  {
+    m_forwardingHint = forwardingHint;
+    m_wire.reset();
+    return *this;
+  }
+
+  const DelegationList &
+  getForwardingHint() const
+  {
+    return m_forwardingHint;
+  }
+
+  bool
+  hasForwardingHint() const
+  {
+    return !m_forwardingHint.empty();
+  }
+
+  void
+  addDelegation(uint64_t preference, const Name &name)
+  {
+    m_forwardingHint.insert(preference, name);
+  }
+
   template<ndn::encoding::Tag T>
   size_t
   wireEncode(EncodingImpl<T>& block) const;
@@ -254,6 +280,8 @@ private:
   bool m_hasWatchTimeout;
   bool m_hasInterestLifetime;
 
+  DelegationList m_forwardingHint;
+
   mutable Block m_wire;
 };
 
@@ -263,6 +291,10 @@ RepoCommandParameter::wireEncode(EncodingImpl<T>& encoder) const
 {
   size_t totalLength = 0;
   size_t variableLength = 0;
+
+  if (!m_forwardingHint.empty()) {
+    totalLength += m_forwardingHint.wireEncode(encoder);
+  }
 
   if (m_hasProcessId) {
     variableLength = encoder.prependNonNegativeInteger(m_processId);
@@ -404,6 +436,13 @@ RepoCommandParameter::wireDecode(const Block& wire)
   {
     m_hasInterestLifetime = true;
     m_interestLifetime = milliseconds(readNonNegativeInteger(*val));
+  }
+
+  // ForwardingHint
+  val = m_wire.find(tlv::ForwardingHint);
+  if (val != m_wire.elements_end())
+  {
+    m_forwardingHint.wireDecode(*val, false);
   }
 }
 
